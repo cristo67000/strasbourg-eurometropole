@@ -40,6 +40,12 @@ données (812 fichiers) dès la première visite ; le fond de carte
 « Carte hors ligne », avec barre de progression. Testé serveur coupé :
 carte, recherche, réseau et fiches restent pleinement fonctionnels.
 
+**Phase 6 réalisée** : POI personnels — appui long sur la carte (clic droit possible
+aussi) ouvre un formulaire (nom, catégorie, note, commentaire) ; les lieux sont stockés
+en IndexedDB, donc pérennes et jamais transmis nulle part. Couche dédiée filtrable par
+catégorie, panneau « Mes POI » avec export et import JSON pour sauvegarder ou transférer
+sa liste vers un autre téléphone.
+
 ## Lancer en local
 
 Le serveur standard de Python ne gère pas les requêtes HTTP *Range* dont

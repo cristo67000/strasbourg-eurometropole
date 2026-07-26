@@ -610,6 +610,7 @@ var Transports = (function () {
     });
     Itineraires.initialiser();
     Musees.initialiser(carte);
+    Poi.initialiser(carte);
 
     carte.on("styledata", function () {
       stylePret = true;

@@ -271,15 +271,29 @@ phase 7).
 
 ---
 
-## 6. POI personnels (restaurants, bars, cinémas…)
+## 6. POI personnels (restaurants, bars, cinémas…) — *réalisé*
 
-- Appui long sur la carte (ou recherche d'adresse) → formulaire : nom, catégorie
-  (restaurant/bar/ciné/commerce/autre), note, commentaire.
-- Stockage **IndexedDB** (pérenne, hors ligne, jamais envoyé nulle part).
-- Export / import JSON (sauvegarde, transfert de téléphone).
-- Couche dédiée sur la carte, filtrable par catégorie, avec icônes distinctes.
-- Bonus possible : catégories OSM déjà dans les tuiles (les restaurants/bars/cinémas
-  existent comme POI vectoriels) → une case « afficher les POI OSM » gratuite en données.
+- **`poi.js`** : appui long sur la carte (touch, ~550 ms, annulé si le doigt bouge de
+  plus de 12 px) ou clic droit (`contextmenu`, plus pratique en développement) → ouvre
+  un formulaire dans le panneau fiche (`Transports.ouvrirFiche`, réutilisé tel quel) :
+  nom, catégorie (restaurant/bar/cinéma/commerce/autre), note (0 à 5 étoiles),
+  commentaire libre.
+- Stockage **IndexedDB** (base `strasbourg-poi`, magasin `poi`, clé auto-incrémentée) :
+  pérenne, hors ligne par nature (l'API est déjà locale au navigateur), jamais envoyé
+  nulle part — aucun changement à `sw.js` n'était nécessaire pour ce point.
+- Export JSON (bouton → `Blob` + lien `download`) et import (fichier → `ajouter()` de
+  chaque entrée valide, en filtrant celles sans nom/coordonnées) depuis le panneau
+  « Mes POI » (`chip-poi`). L'import **fusionne** plutôt que de remplacer : des ids sont
+  réattribués à l'insertion, pas de détection de doublon.
+- Couche dédiée (`poi-points` / `poi-noms`), même construction que la couche musées,
+  couleur par catégorie via une expression `match`, filtrable par catégorie (chips dans
+  le panneau liste, `setFilter` avec `["in", ["get", "categorie"], [...]]`).
+- Non fait à cette phase (écarté comme relevant du bonus, pas du cœur de la phase) : la
+  case « afficher les POI OSM » (restaurants/bars/cinémas déjà présents comme POI
+  vectoriels dans les tuiles Protomaps) et l'intégration des POI perso à la recherche
+  principale — celle-ci ne gère aujourd'hui que l'ajout d'entrées, jamais leur retrait,
+  ce qui aurait exigé de retravailler `app.js` pour un gain marginal (les POI se
+  retrouvent déjà via le panneau « Mes POI »).
 
 ---
 
@@ -290,7 +304,7 @@ phase 7).
   resterait possible ensuite, comme france-departements).
 - **Service worker (`sw.js`)**, deux caches distincts :
   - `strasbourg-app-<build>` : app shell, styles, glyphes, sprites, icônes, JSON de
-    données, photos de musées — 812 fichiers précachés à l'installation, listés par
+    données, photos de musées — 813 fichiers précachés à l'installation, listés par
     `build/manifeste.py` (écrire cette liste à la main était impraticable : 769 fichiers
     de glyphes). Stratégie *réseau d'abord, cache en secours* pour le code et les JSON
     (légers, mis à jour à chaque build), *cache d'abord* pour `lib/`, `assets/`,
@@ -358,7 +372,7 @@ strasbourg-eurometropole/
   musees.js             # couche carte, horaires calculés, fiches, photos      [fait]
   pwa.js                # enregistrement SW, téléchargement carte + progression [fait]
   sw.js                 # service worker : précache app shell, cache tuiles    [fait]
-  poi.js                                                    # phase 6
+  poi.js                 # POI perso : IndexedDB, formulaire, couche filtrable  [fait]
   style.css  manifest.webmanifest                                             #  [fait]
   lib/maplibre-gl.js  lib/maplibre-gl.css                    # vendorisés [fait]
   lib/pmtiles.js  lib/basemaps.js                            #            [fait]
@@ -373,7 +387,7 @@ strasbourg-eurometropole/
     cts-tarifs.json     # 3 Ko                                            [fait]
     musees.json         # 23 Ko, 33 lieux                                 [fait]
     version.json        # provenance et millésime de chaque jeu           [fait]
-    precache.json        # liste des 812 fichiers de l'app shell (SW)     [fait]
+    precache.json        # liste des 813 fichiers de l'app shell (SW)     [fait]
     expositions.json                                       # phase 7
   img/musees/*.webp     # 0,9 Mo, 12 photos créditées                     [fait]
   build/                # pipeline Python (non servi)
@@ -410,7 +424,9 @@ le bouton « tout installer hors ligne » complète le reste.
    versionnage.~~ **Fait** (§ 7). Écart : la barre de progression et le téléchargement
    se font depuis la page (`pwa.js`) et non par messages vers le service worker — plus
    simple, l'API Cache Storage est accessible depuis les deux contextes.
-6. **POI personnels** : IndexedDB, export/import.
+6. ~~**POI personnels** : IndexedDB, export/import.~~ **Fait** (§ 6). Écart : pas de case
+   « afficher les POI OSM » ni d'intégration à la recherche principale — laissés de côté
+   comme bonus hors du cœur de la phase (§ 6).
 7. **Mode en ligne** : proxy Cloudflare Worker, temps réel CTS, API SNCF, expositions.
 8. **Publication** : GitHub Pages, puis éventuellement TWA Play Store.
 

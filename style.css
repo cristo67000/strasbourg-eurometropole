@@ -700,6 +700,68 @@ details.solution summary::-webkit-details-marker { display: none; }
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- POI personnels ---- */
+
+.form-poi {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+
+.champ-poi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.champ-poi > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte-secondaire);
+}
+
+.champ-poi input,
+.champ-poi select,
+.champ-poi textarea {
+  width: 100%;
+  padding: 9px 11px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+}
+
+.champ-poi input:focus,
+.champ-poi select:focus,
+.champ-poi textarea:focus { border-color: var(--accent); }
+
+.chips-filtre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chips-filtre .chip.actif { color: #ffffff; }
+
+.pastille-cat {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.note-etoiles {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  color: #d4a017;
+}
+
 /* ---- contrôles MapLibre sous la barre ---- */
 
 .maplibregl-ctrl-top-right { top: 60px; }
