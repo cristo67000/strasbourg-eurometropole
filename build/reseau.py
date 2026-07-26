@@ -201,7 +201,7 @@ def lire_gtfs(zf, prefixe, agence, filtrer_zone, couleur_defaut):
                 if filtrer_zone and not dans_zone(lat, lon):
                     continue
                 zones[r["stop_id"]] = {"nom": r["stop_name"].strip(),
-                                       "lat": lat, "lon": lon}
+                                       "lat": lat, "lon": lon, "refs": [r["stop_id"]]}
         for r in brut:
             if r["location_type"] != "1":
                 p = r.get("parent_station") or ""
@@ -221,8 +221,8 @@ def lire_gtfs(zf, prefixe, agence, filtrer_zone, couleur_defaut):
             if filtrer_zone and not dans_zone(lat, lon):
                 continue
             par_prefixe[r["stop_id"].rsplit("_", 1)[0]].append(
-                {"id": r["stop_id"], "nom": r["stop_name"].strip(),
-                 "lat": lat, "lon": lon}
+                {"id": r["stop_id"], "code": (r.get("stop_code") or "").strip(),
+                 "nom": r["stop_name"].strip(), "lat": lat, "lon": lon}
             )
         prelim = []
         for pref, membres in par_prefixe.items():
@@ -232,6 +232,7 @@ def lire_gtfs(zf, prefixe, agence, filtrer_zone, couleur_defaut):
                 "lat": sum(m["lat"] for m in membres) / len(membres),
                 "lon": sum(m["lon"] for m in membres) / len(membres),
                 "membres": [m["id"] for m in membres],
+                "codes": [m["code"] for m in membres if m["code"]],
             })
         par_cle = defaultdict(list)
         for p in prelim:
@@ -255,6 +256,11 @@ def lire_gtfs(zf, prefixe, agence, filtrer_zone, couleur_defaut):
                     "nom": principal["nom"],
                     "lat": sum(x["lat"] * len(x["membres"]) for x in paquet) / total,
                     "lon": sum(x["lon"] * len(x["membres"]) for x in paquet) / total,
+                    # identifiants bruts GTFS, en réserve pour le futur temps réel
+                    # (SIRI Lite — format exact du MonitoringRef non confirmé,
+                    # code ET id conservés pour ne pas devoir refaire un build).
+                    "refs": sorted(set(c for x in paquet for c in x["codes"])) or
+                            sorted(set(m for x in paquet for m in x["membres"])),
                 }
                 for x in paquet:
                     for m in x["membres"]:
@@ -365,7 +371,7 @@ def assembler(reseaux):
             stations.append({
                 "cle": cle, "nom": s["nom"],
                 "lat": round(s["lat"], 5), "lon": round(s["lon"], 5),
-                "agence": r["agence"],
+                "agence": r["agence"], "refs": s.get("refs", []),
             })
     stations.sort(key=lambda s: (normaliser(s["nom"]), s["cle"]))
     idx_station = {s["cle"]: i for i, s in enumerate(stations)}
@@ -485,7 +491,7 @@ def assembler(reseaux):
         "destinations": destinations,
         "stations": [
             [s["cle"], s["nom"], s["lat"], s["lon"],
-             sorted(lignes_par_station[i]), s["agence"]]
+             sorted(lignes_par_station[i]), s["agence"], s["refs"]]
             for i, s in enumerate(stations)
         ],
     }

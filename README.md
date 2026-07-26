@@ -46,6 +46,13 @@ en IndexedDB, donc pérennes et jamais transmis nulle part. Couche dédiée filt
 catégorie, panneau « Mes POI » avec export et import JSON pour sauvegarder ou transférer
 sa liste vers un autre téléphone.
 
+**Phase 7 (code prêt, non déployé)** : mode en ligne optionnel — passages CTS et SNCF
+en temps réel via un petit proxy Cloudflare Worker (`worker/`) qui garde les tokens
+côté serveur. Chip « Mode en ligne » pour coller l'URL du Worker une fois déployé
+(voir `worker/README.md`) ; tant qu'aucune URL n'est renseignée, l'app se comporte
+exactement comme en phase 6 (horaires théoriques uniquement). Non fait : les
+expositions en cours, faute de jeu de données ouvert trouvé pour l'agenda culturel.
+
 ## Lancer en local
 
 Le serveur standard de Python ne gère pas les requêtes HTTP *Range* dont

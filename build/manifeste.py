@@ -22,6 +22,7 @@ FICHIERS_RACINE = [
     "itineraires.js",
     "musees.js",
     "poi.js",
+    "temps-reel.js",
     "transports.js",
     "pwa.js",
 ]

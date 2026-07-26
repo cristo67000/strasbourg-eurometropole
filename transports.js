@@ -422,6 +422,8 @@ var Transports = (function () {
       // sans borne haute : la journée peut n'avoir de desserte qu'en soirée
       // (travaux d'été, service réduit), et l'annoncer vaut mieux que
       // renvoyer l'utilisateur au lendemain.
+      var conteneurPassages = document.createElement("div");
+      corps.appendChild(conteneurPassages);
       var groupes = prochainsPassages(idxStation, maintenant, Infinity);
       if (groupes.length) {
         if (groupes[0].passages[0].dans > 180) {
@@ -429,9 +431,9 @@ var Transports = (function () {
           creux.className = "note";
           creux.textContent = "Aucun passage dans les 3 prochaines heures ; reprise à "
             + formaterHeure(groupes[0].passages[0].heure) + ".";
-          corps.appendChild(creux);
+          conteneurPassages.appendChild(creux);
         }
-        groupes.forEach(function (g) { corps.appendChild(ligneDePassages(g)); });
+        groupes.forEach(function (g) { conteneurPassages.appendChild(ligneDePassages(g)); });
       } else {
         var suite = premiersPassages(idxStation, maintenant);
         var vide = document.createElement("p");
@@ -440,11 +442,14 @@ var Transports = (function () {
           ? "Plus de passage aujourd'hui. Premiers départs " +
             JOURS[Reseau.jourSemaineLundi0(suite.jour)] + " :"
           : "Aucun passage connu à cet arrêt.";
-        corps.appendChild(vide);
+        conteneurPassages.appendChild(vide);
         if (suite) {
-          suite.liste.forEach(function (g) { corps.appendChild(ligneDePassages(g)); });
+          suite.liste.forEach(function (g) { conteneurPassages.appendChild(ligneDePassages(g)); });
         }
       }
+      // remplace silencieusement les horaires théoriques ci-dessus si le
+      // mode en ligne est configuré et répond à temps ; sinon ils restent.
+      TempsReel.essayerStation(station, conteneurPassages);
 
       var pied = document.createElement("p");
       pied.className = "note";
@@ -611,6 +616,7 @@ var Transports = (function () {
     Itineraires.initialiser();
     Musees.initialiser(carte);
     Poi.initialiser(carte);
+    TempsReel.initialiser();
 
     carte.on("styledata", function () {
       stylePret = true;

@@ -756,6 +756,11 @@ details.solution summary::-webkit-details-marker { display: none; }
   border-radius: 50%;
 }
 
+.tr-badge {
+  font-weight: 700;
+  color: #1e8e3e;
+}
+
 .note-etoiles {
   margin: 0 0 8px 0;
   font-size: 15px;

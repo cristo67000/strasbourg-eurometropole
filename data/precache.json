@@ -9,6 +9,7 @@
     "itineraires.js",
     "musees.js",
     "poi.js",
+    "temps-reel.js",
     "transports.js",
     "pwa.js",
     "data/rues.json",

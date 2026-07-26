@@ -125,20 +125,50 @@ centre (Homme de Fer) n'ont de tram qu'en soirée, le jour étant assuré par le
 « Remplacement-A/E » et « Remplacement-B/F ». La fiche arrêt l'annonce explicitement
 (« reprise à 22:00 ») au lieu de renvoyer au lendemain.
 
-### 3.2 Temps réel (en ligne)
+### 3.2 Temps réel (en ligne) — *réalisé côté code, non vérifié en conditions réelles*
 
 L'API temps réel CTS (`api.cts-strasbourg.eu`, SIRI Lite : `stop-monitoring`,
-`estimated-timetable`, `general-message`) exige un **token**. Un site statique ne peut
-pas embarquer un secret → **petit proxy Cloudflare Worker** (offre gratuite largement
-suffisante) qui :
+`general-message`) et l'API SNCF (Navitia, `api.sncf.com`) exigent chacune un
+**token**. Un site statique ne peut pas embarquer un secret → **`worker/index.js`**,
+un Worker Cloudflare (offre gratuite suffisante) qui :
 
-- garde le token côté serveur,
+- garde les deux tokens côté serveur (`wrangler secret put`, jamais dans le dépôt),
 - ajoute les en-têtes CORS,
-- met en cache 30 s les réponses (économise le quota),
-- ne relaie que les endpoints en lecture.
+- met en cache les réponses à l'edge (30 s passages, 120 s perturbations),
+- ne relaie que trois endpoints en lecture (`/cts/passages`, `/cts/perturbations`,
+  `/sncf/passages`) — aucune écriture possible vers CTS ou SNCF.
 
-Si l'utilisateur est hors ligne ou que le proxy ne répond pas : repli silencieux sur les
-horaires théoriques, avec un badge « horaires théoriques » / « temps réel » dans l'UI.
+Client (**`temps-reel.js`**) : un chip « Mode en ligne » ouvre un panneau où coller
+l'URL du Worker déployé (stockée en `localStorage`, jamais ailleurs). Tant qu'aucune
+URL n'est configurée — ou que le Worker ne répond pas dans les 4 s (`AbortController`)
+— l'app se comporte **exactement** comme en phase 6 : uniquement les horaires
+théoriques déjà calculés par `transports.js`. Quand une réponse arrive à temps, elle
+remplace en place le contenu théorique déjà affiché (repérage par nœud DOM toujours
+attaché — `Node.isConnected` —, pas de mécanisme d'annulation de fetch nécessaire) et
+affiche un badge « ● Temps réel ».
+
+Pour cibler le bon arrêt/gare côté CTS/SNCF, `build/reseau.py` a été étendu (phase 7)
+pour conserver, par station, les identifiants bruts du GTFS d'origine (`stop_code`
+CTS type `10A`, ou id `StopArea:OCE…` SNCF) dans un 7ᵉ champ du tableau station —
+c'était disponible en mémoire pendant la construction, mais jusque-là jeté après le
+regroupement en stations logiques.
+
+**Non vérifié en conditions réelles, faute de token au moment de l'écriture** (voir
+`worker/README.md`) : le format exact des réponses SIRI Lite et Navitia a été suivi
+au plus près de la spécification officielle (`api.cts-strasbourg.eu/v1/swagger.json`
+récupérée et lue en détail, documentation Navitia), mais seule une vraie requête avec
+un vrai token le confirmera. Si un champ diffère, la correction se limite à
+`worker/index.js` — le contrat exposé au client (`{ligne, destination, heure}` /
+`{ligne, destination, theorique, estime, retard}`) ne change pas.
+
+**Non fait à cette phase** : les expositions en cours (§ 5). Aucun jeu de données
+ouvert correspondant n'a été trouvé sur data.strasbourg.eu au moment de la recherche
+(catalogue complet des 398 jeux passé en revue par mots-clés — seul `lieux_culture`,
+déjà utilisé en phase 4, s'en approche, et il ne contient aucun horaire ni agenda).
+`build/expositions.py` n'a donc pas été écrit plutôt que de fabriquer une donnée
+absente — cohérent avec la règle du projet de ne jamais afficher une information
+qu'on ne peut vérifier (§ 5). À reconsidérer si une source fiable apparaît (OpenAgenda
+d'un musée en particulier, par exemple).
 
 ### 3.3 Itinéraires porte-à-porte (hors ligne) — *réalisé*
 
@@ -304,7 +334,7 @@ phase 7).
   resterait possible ensuite, comme france-departements).
 - **Service worker (`sw.js`)**, deux caches distincts :
   - `strasbourg-app-<build>` : app shell, styles, glyphes, sprites, icônes, JSON de
-    données, photos de musées — 813 fichiers précachés à l'installation, listés par
+    données, photos de musées — 814 fichiers précachés à l'installation, listés par
     `build/manifeste.py` (écrire cette liste à la main était impraticable : 769 fichiers
     de glyphes). Stratégie *réseau d'abord, cache en secours* pour le code et les JSON
     (légers, mis à jour à chaque build), *cache d'abord* pour `lib/`, `assets/`,
@@ -350,9 +380,16 @@ build/
   pmtiles.exe       # extraction des tuiles depuis build.protomaps.com                  [fait]
   icones.py         # Pillow → icons/icon-*.png (flèche gothique, sans image source)    [fait]
   manifeste.py      # énumère l'app shell → data/precache.json (précache du SW)         [fait]
-  expositions.py    # agenda open data → expositions.json (phase 7)
   cache/            # GTFS, réponses Overpass, jeu lieux_culture (non versionné)
+
+worker/             # proxy Cloudflare (mode en ligne, phase 7)
+  index.js          # /cts/passages /cts/perturbations /sncf/passages, tokens en secrets [fait]
+  wrangler.toml      #                                                                   [fait]
+  README.md         # obtention des tokens, déploiement, ce qui reste à vérifier         [fait]
 ```
+
+Pas d'`expositions.py` : aucune source ouverte trouvée pour l'agenda des expositions
+en cours (§ 3.2) — écarté plutôt que d'inventer une donnée.
 
 Lancement manuel à chaque changement d'horaires (rentrée, Marché de Noël, été) —
 pas de CI nécessaire, cohérent avec vos habitudes. Les GTFS pèsent quelques dizaines
@@ -373,6 +410,7 @@ strasbourg-eurometropole/
   pwa.js                # enregistrement SW, téléchargement carte + progression [fait]
   sw.js                 # service worker : précache app shell, cache tuiles    [fait]
   poi.js                 # POI perso : IndexedDB, formulaire, couche filtrable  [fait]
+  temps-reel.js           # mode en ligne : proxy, config, repli théorique      [fait]
   style.css  manifest.webmanifest                                             #  [fait]
   lib/maplibre-gl.js  lib/maplibre-gl.css                    # vendorisés [fait]
   lib/pmtiles.js  lib/basemaps.js                            #            [fait]
@@ -387,7 +425,7 @@ strasbourg-eurometropole/
     cts-tarifs.json     # 3 Ko                                            [fait]
     musees.json         # 23 Ko, 33 lieux                                 [fait]
     version.json        # provenance et millésime de chaque jeu           [fait]
-    precache.json        # liste des 813 fichiers de l'app shell (SW)     [fait]
+    precache.json        # liste des 814 fichiers de l'app shell (SW)     [fait]
     expositions.json                                       # phase 7
   img/musees/*.webp     # 0,9 Mo, 12 photos créditées                     [fait]
   build/                # pipeline Python (non servi)
@@ -427,7 +465,12 @@ le bouton « tout installer hors ligne » complète le reste.
 6. ~~**POI personnels** : IndexedDB, export/import.~~ **Fait** (§ 6). Écart : pas de case
    « afficher les POI OSM » ni d'intégration à la recherche principale — laissés de côté
    comme bonus hors du cœur de la phase (§ 6).
-7. **Mode en ligne** : proxy Cloudflare Worker, temps réel CTS, API SNCF, expositions.
+7. ~~**Mode en ligne** : proxy Cloudflare Worker, temps réel CTS, API SNCF,
+   expositions.~~ **Fait côté code** (§ 3.2), **non vérifié en conditions réelles**
+   faute de compte/token CTS et SNCF au moment de l'écriture, et **non déployé**
+   faute de compte Cloudflare configuré sur ce poste — le Worker attend dans
+   `worker/`, prêt à déployer (`worker/README.md`). Écart : pas d'expositions,
+   aucune source ouverte trouvée (§ 3.2).
 8. **Publication** : GitHub Pages, puis éventuellement TWA Play Store.
 
 Chaque phase livre une app utilisable ; le temps réel arrive volontairement en dernier

@@ -1,0 +1,12 @@
+name = "strasbourg-eurometropole-temps-reel"
+main = "index.js"
+compatibility_date = "2026-07-26"
+
+# Restreindre aux seuls domaines qui servent l'app (GitHub Pages + tests
+# locaux) plutôt que "*", une fois l'URL de publication connue (phase 8) :
+#   [vars]
+#   ALLOWED_ORIGIN = "https://cristo67000.github.io"
+#
+# Les tokens sont des secrets, jamais dans ce fichier ni dans le dépôt :
+#   wrangler secret put CTS_TOKEN
+#   wrangler secret put SNCF_TOKEN
