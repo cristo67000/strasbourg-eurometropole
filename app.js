@@ -28,6 +28,18 @@ var Carte = (function () {
     var flavor = basemaps.namedFlavor(flavorNom);
     var couches = basemaps.layers("protomaps", flavor, { lang: "fr" });
 
+    // `place=locality` (OSM) désigne des lieux-dits historiques sans
+    // population réelle (Flurnamen alsaciens, souvent en allemand : « Auf
+    // den Stadtweg », « Neben dem Kreuzpfad »…), à distinguer des vrais
+    // villages (`kind_detail` = village/town/city, eux toujours nommés en
+    // français). Masqués : ce ne sont pas des toponymes utiles à la
+    // navigation, seulement du bruit cartographique dans ce cas précis.
+    couches.forEach(function (c) {
+      if (c.id === "places_locality") {
+        c.filter = ["all", c.filter, ["!=", "kind_detail", "locality"]];
+      }
+    });
+
     // Couche 3D maison (les tuiles portent height / min_height)
     couches.push({
       id: "batiments-3d",

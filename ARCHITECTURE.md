@@ -522,6 +522,15 @@ Chaque phase livre une app utilisable ; le temps réel arrive volontairement en 
   sur une bbox « raisonnable » choisie à part : une gare hors carte n'a aucun sens à
   l'écran. Les deux bbox vivaient dans des fichiers différents (`build/overpass.py`,
   `build/reseau.py`) et avaient dérivé l'une de l'autre avant d'être unifiées.
+- La couche `places_locality` du fond Protomaps mélange deux choses sous le même
+  `kind` : les vrais villages (`kind_detail`: village/town/city, toujours nommés
+  correctement) et le tag OSM `place=locality` — des lieux-dits historiques sans
+  population réelle (`population: 1000`, valeur de repli synthétique), souvent en
+  allemand en Alsace (Flurnamen : « Auf den Stadtweg », « Neben dem Kreuzpfad »…).
+  `lang: "fr"` ne les traduit pas puisqu'ils n'ont pas de tag `name:fr`. Filtré côté
+  client (`app.js`, `construireStyle`) en excluant `kind_detail == "locality"` de
+  cette seule couche — décision purement esthétique (bruit cartographique), les
+  autres couches (rues, réseau CTS/SNCF) n'étaient pas concernées.
 - Un flux GTFS **national** (comme celui de la SNCF) peut contenir des milliers de
   calendriers sans rapport avec la zone filtrée : élaguer aux seuls services
   réellement référencés par une course retenue, sinon le poids explose sans raison
