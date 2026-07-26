@@ -1,0 +1,56 @@
+{
+  "build": "2026-07-26",
+  "tuiles": {
+    "source": "https://build.protomaps.com/20260724.pmtiles",
+    "donnees_osm": "2026-07-24",
+    "bbox": [7.50, 48.40, 7.92, 48.70],
+    "zoom_max": 15
+  },
+  "rues": {
+    "source": "Overpass API (OpenStreetMap)",
+    "date": "2026-07-24",
+    "noms": 6010,
+    "entrees": 9476
+  },
+  "reseau": {
+    "cts": {
+      "source": "https://opendata.cts-strasbourg.eu/google_transit.zip",
+      "gtfs_publie": "2026-07-21",
+      "valide_jusquau": "2027-01-17",
+      "lignes": 48,
+      "tram": 6
+    },
+    "sncf": {
+      "source": "https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip",
+      "gtfs_publie": "2026-07-24",
+      "gares_dans_l_emprise": 30,
+      "remarque": "flux national filtré à l'emprise des tuiles ; les gares hors emprise restent citées comme destinations"
+    },
+    "stations": 599,
+    "calendriers": 918,
+    "motifs": 422,
+    "courses": 49378,
+    "correspondances_a_pied": 618,
+    "tarifs_cts": 30,
+    "traces": {
+      "source": "relations OpenStreetMap (operator=Compagnie des Transports Strasbourgeois)",
+      "date": "2026-07-25",
+      "polylignes": 57,
+      "points": 5455,
+      "remarque": "le GTFS CTS ne fournit pas shapes.txt ; le réseau SNCF n'a pas de tracé"
+    }
+  },
+  "musees": {
+    "sources": {
+      "osm": "OpenStreetMap (position, horaires, accessibilité)",
+      "ville": "data.strasbourg.eu, jeu « lieux_culture » (description, lien officiel)",
+      "photos": "Wikimedia Commons via Wikidata P18, crédit par photo"
+    },
+    "releve": "2026-07-26",
+    "lieux": 33,
+    "avec_horaires": 22,
+    "avec_description": 17,
+    "avec_photo": 12,
+    "remarque": "aucun tarif publié : le jeu officiel n'en fournit aucun, on n'invente rien"
+  }
+}

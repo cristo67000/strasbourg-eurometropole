@@ -1,0 +1,453 @@
+# Strasbourg & Eurométropole — Architecture de l'application
+
+PWA statique (zéro build, pas de Node), consultable **100 % hors ligne** sur smartphone,
+avec un **mode en ligne optionnel** qui actualise horaires, tarifs et perturbations en temps réel.
+Hébergement : GitHub Pages (compte cristo67000), comme les autres projets.
+
+---
+
+## 1. Vue d'ensemble
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     PWA (index.html)                        │
+│                                                             │
+│  ┌──────────────┐  ┌───────────────┐  ┌─────────────────┐   │
+│  │ MapLibre GL  │  │ Moteur        │  │ Panneaux UI     │   │
+│  │ (carte 2D/3D)│  │ d'itinéraires │  │ arrêts/musées/  │   │
+│  │              │  │ (CSA en JS)   │  │ POI perso       │   │
+│  └──────┬───────┘  └───────┬───────┘  └────────┬────────┘   │
+│         │                  │                   │            │
+│  ┌──────┴──────────────────┴───────────────────┴────────┐   │
+│  │              Couche données (data/)                  │   │
+│  │  tiles.pmtiles │ gtfs-cts.json │ ter.json │ musees…  │   │
+│  └──────────────────────────┬───────────────────────────┘   │
+│                             │                               │
+│  ┌──────────────────────────┴───────────────────────────┐   │
+│  │  Service worker (cache-first) + IndexedDB (POI perso)│   │
+│  └──────────────────────────────────────────────────────┘   │
+└───────────────┬─────────────────────────────────────────────┘
+                │ mode EN LIGNE uniquement
+        ┌───────┴────────────────────────────┐
+        │ Proxy Cloudflare Worker (gratuit)  │
+        │  → API CTS (SIRI Lite, temps réel) │
+        │  → API SNCF (Navitia)              │
+        └────────────────────────────────────┘
+```
+
+Deux régimes de fonctionnement :
+
+| | Hors ligne (défaut) | En ligne (option) |
+|---|---|---|
+| Carte | Tuiles vectorielles embarquées (PMTiles) | idem (rien à télécharger) |
+| Horaires CTS | Horaires théoriques GTFS embarqués | Passages temps réel (SIRI Lite) |
+| Trains | Horaires théoriques TER embarqués | Retards / perturbations (API SNCF) |
+| Musées | Horaires + tarifs figés au dernier build | Expositions en cours actualisées |
+| Itinéraires | Calcul local (algorithme CSA) | idem + prise en compte des retards |
+
+---
+
+## 2. La carte — MapLibre GL JS + PMTiles (et pas Leaflet)
+
+**Décision clé du projet.** Leaflet (utilisé sur les autres projets) affiche des tuiles
+*raster* : hors ligne, il faudrait embarquer des centaines de Mo d'images et les noms de
+rues seraient des pixels. Ici on passe à :
+
+- **MapLibre GL JS** (~800 Ko, un seul `<script>`, zéro build — même philosophie que Leaflet) ;
+- **PMTiles** : tout le fond de carte vectoriel de l'Eurométropole dans **un seul fichier**
+  `tiles.pmtiles` (~30–60 Mo pour les 33 communes, zoom 0→15 monde dézoomé + zoom 16/17
+  détaillé sur l'EMS). Lecture par requêtes HTTP *Range* (supportées par GitHub Pages)
+  et par le service worker une fois en cache.
+
+Ce que ça apporte :
+
+- **Toutes les rues nommées** : les noms sont des données vectorielles, rendus nets à
+  n'importe quel zoom, rotation, inclinaison.
+- **3D réelle** : couche `fill-extrusion` sur les bâtiments OSM (hauteurs `building:height`
+  très bien renseignées sur Strasbourg — cathédrale, Neustadt, institutions européennes).
+  Bouton 2D/3D qui incline la caméra à 60°.
+- **Mode sombre gratuit** : deux fichiers de style JSON (clair/sombre) sur les mêmes tuiles.
+
+Fabrication du fichier (pipeline local, une commande) :
+
+1. Extrait OSM `alsace-latest.osm.pbf` (Geofabrik), découpé sur la bbox EMS ;
+2. **tilemaker** ou **planetiler** (binaires autonomes, pas de Node) → `tiles.pmtiles`
+   au schéma OpenMapTiles/Shortbread ;
+3. Alternative sans rien installer : extraits sur mesure de **Protomaps** (bbox → .pmtiles).
+
+Glyphes de police et sprites embarqués dans `assets/` (obligatoire hors ligne).
+
+---
+
+## 3. Transports CTS (bus + tram)
+
+### 3.1 Données théoriques (hors ligne) — *réalisé*
+
+Source : **GTFS officiel CTS**, `https://opendata.cts-strasbourg.eu/google_transit.zip`
+(référencé sur transport.data.gouv.fr, et non sur data.strasbourg.eu comme supposé
+initialement). `build/cts.py` le transforme en JSON compacts :
+
+- `data/cts-reseau.json` (50 Ko) — 48 lignes avec couleurs officielles et parcours
+  ordonnés, et 569 **stations** obtenues en regroupant les 1 360 points d'arrêt
+  (le GTFS n'a pas de `parent_station` : on groupe par préfixe d'identifiant
+  `NOM_NN`, puis on fusionne les homonymes à moins de 400 m).
+- `data/cts-courses.json` (**0,23 Mo**) — la structure complète des 47 147 courses,
+  les 121 calendriers et les 574 correspondances à pied.
+- `data/cts-tarifs.json` — 30 titres, voir 3.4.
+
+**Modèle « motifs de desserte ».** Une première version stockait, par station, la
+liste des minutes de passage : 1,34 Mo, et l'identité des courses était perdue — donc
+inexploitable pour un itinéraire. Le modèle retenu part du constat que les 47 147
+courses ne dessinent que **255 séquences d'arrêts distinctes** et 2 664 profils
+horaires (écarts en minutes depuis le premier arrêt). Une course se réduit alors à un
+triplet calendrier / heure de départ / profil, et le fichier sert *à la fois* les
+fiches arrêt et le calcul d'itinéraires — six fois plus petit avec strictement plus
+d'information. Tout est encodé en varint base 64 (`build/codec.py`, miroir JS dans
+`reseau.js`). `build/verifie.py` recompte les arrêts et les courses redécodés et les
+compare au GTFS source : 938 788 et 47 147, encodage sans perte.
+
+Détail conservé pour l'exactitude : arrivée et départ diffèrent dans 0,04 % des
+arrêts seulement (battements aux terminus, jusqu'à 16 min). Ces écarts sont stockés
+à part, en liste éparse, plutôt que de doubler tous les profils.
+
+**Deux écarts par rapport au plan initial, découverts sur les données réelles :**
+
+1. *Pas de `shapes.txt`* dans le GTFS CTS : aucune géométrie de ligne n'est fournie.
+   Les tracés viennent donc des relations OpenStreetMap (§ 3.5).
+2. *Types de jours irréguliers* : outre Semaine/Samedi/Dimanche, le GTFS contient des
+   calendriers `Jeu`, `Mardi`, `Mercredi`, `L`, `D`, `F`… et beaucoup de calendriers
+   d'un seul jour. Le raccourci « trois types de jours » prévu au départ aurait été
+   faux ; le client applique donc la **vraie résolution GTFS** (plage de validité +
+   masque de jours + exceptions `calendar_dates`), soit une quinzaine de lignes de JS.
+
+Conséquence visible et correcte : pendant les travaux d'été 2026, certains arrêts du
+centre (Homme de Fer) n'ont de tram qu'en soirée, le jour étant assuré par les lignes
+« Remplacement-A/E » et « Remplacement-B/F ». La fiche arrêt l'annonce explicitement
+(« reprise à 22:00 ») au lieu de renvoyer au lendemain.
+
+### 3.2 Temps réel (en ligne)
+
+L'API temps réel CTS (`api.cts-strasbourg.eu`, SIRI Lite : `stop-monitoring`,
+`estimated-timetable`, `general-message`) exige un **token**. Un site statique ne peut
+pas embarquer un secret → **petit proxy Cloudflare Worker** (offre gratuite largement
+suffisante) qui :
+
+- garde le token côté serveur,
+- ajoute les en-têtes CORS,
+- met en cache 30 s les réponses (économise le quota),
+- ne relaie que les endpoints en lecture.
+
+Si l'utilisateur est hors ligne ou que le proxy ne répond pas : repli silencieux sur les
+horaires théoriques, avec un badge « horaires théoriques » / « temps réel » dans l'UI.
+
+### 3.3 Itinéraires porte-à-porte (hors ligne) — *réalisé*
+
+Moteur maison en JS (`itineraires.js`), algorithme **CSA (Connection Scan Algorithm)** —
+beaucoup plus simple que RAPTOR et largement assez rapide à l'échelle d'un réseau urbain.
+
+Écart par rapport au plan : **aucun fichier de connexions n'est livré**. Les 891 641
+connexions du réseau seraient trop lourdes ; elles sont **reconstruites à la demande**
+depuis les motifs (§ 3.1), pour la seule fenêtre utile. Mesuré : 30 000 connexions
+construites et triées en 17 ms, trois solutions en 20 ms au total.
+
+1. Départ = position GPS, arrêt ou adresse ; arrêts accessibles à pied dans un rayon
+   de 900 m (4,5 km/h, détour × 1,3).
+2. Les connexions couvrent **veille / jour / lendemain** : une course codée à 25:30
+   la veille circule à 01:30 aujourd'hui, et un itinéraire de nuit doit la voir.
+3. Battement de 2 min pour changer de véhicule ; une correspondance à pied (574 paires
+   d'arrêts à moins de 400 m, précalculées) tient lieu de battement.
+4. Trois variantes par recherche, obtenues en **excluant la course** du premier
+   véhicule — et non une plage horaire, sinon on propose le même tram pris deux
+   arrêts plus loin.
+
+Deux corrections issues des essais, à conserver en tête : le CSA minimise l'heure
+d'arrivée *station par station*, ce qui peut conseiller de longues marches sans gain
+réel. D'où (a) une **égalité tranchée en faveur de moins de marche**, et (b) un
+**recalage du point de montée** le plus en amont possible sur la même course. Sans
+cela l'app conseillait onze minutes de marche pour prendre un tram qui passait de
+toute façon à l'arrêt de départ.
+
+La géolocalisation reste **100 % locale** (même principe que vos autres apps — jamais envoyée).
+
+### 3.4 Tarifs (hors ligne) — *réalisé, non prévu au départ*
+
+Bonne surprise : le GTFS CTS embarque **GTFS-Fares v2** (`fare_products`,
+`rider_categories`, `fare_media`). Les 30 titres — de l'aller simple à 1,90 € aux
+abonnements par quotient familial — sont donc consultables hors ligne, avec le support
+(BSC, Badgéo, Appli) et la catégorie de voyageur. Un avertissement invite à vérifier
+auprès de la CTS avant achat, les grilles évoluant entre deux régénérations.
+
+### 3.5 Tracés des lignes — *réalisé*
+
+Faute de `shapes.txt`, `build/traces.py` reconstruit la géométrie depuis les
+139 relations OSM `type=route` de l'opérateur (attention : OSM utilise
+`operator="Compagnie des Transports Strasbourgeois"`, jamais « CTS »). Traitement :
+
+1. assemblage des tronçons bout à bout, avec réorientation (le tram A donne une
+   polyligne continue de 14,74 km à partir de 126 tronçons — longueur exacte) ;
+2. simplification Douglas-Peucker à 3 m, soit ~3 px au zoom 17 ;
+3. élimination des variantes redondantes — les deux sens se superposent — par
+   couverture spatiale, en conservant les antennes.
+
+Résultat : 57 polylignes, 5 455 points, **110 Ko** pour les 48 lignes. Les tracés
+suivent les voies réelles, ce qui est très supérieur à des segments droits entre arrêts.
+Seules les 2 lignes de substitution temporaires n'ont pas de tracé (absentes d'OSM).
+
+---
+
+## 4. Trains SNCF — *réalisé (hors ligne)*
+
+Écart heureux par rapport au plan initial : le flux **GTFS national de la SNCF**
+(`Export_OpenData_SNCF_GTFS_NewTripId.zip`, mis à jour quotidiennement, ~5 Mo compressé)
+suffit — inutile d'aller chercher un flux TER dédié. `build/reseau.py` le filtre à
+l'emprise des tuiles (30 gares : Strasbourg, Entzheim-Aéroport, Vendenheim, Geispolsheim,
+La Wantzenau, Molsheim, Kehl…) et l'assemble **dans le même fichier** que la CTS.
+
+Conséquence directe : le moteur d'itinéraires (§ 3.3) enchaîne tram et train sans code
+spécifique. Vérifié : Homme de Fer → aéroport d'Entzheim en 28 min (tram D + TER),
+correspondance à pied de 2 min entre « Gare Centrale » (nom CTS) et « Strasbourg »
+(nom SNCF) — les deux stations ne sont **volontairement pas fusionnées**, seules les
+574+ correspondances à pied les relient.
+
+Deux subtilités du flux national, réglées dans le pipeline :
+
+- Il contient ~9 500 calendriers dont l'écrasante majorité ne concerne aucune course
+  retenue (services d'autres régions) : on ne garde que ceux réellement référencés,
+  ce qui fait chuter `courses.json` de 0,88 Mo à 0,31 Mo pour les deux réseaux réunis.
+- Une course SNCF peut continuer hors de l'emprise (train vers Paris, Bâle, Nancy…) :
+  son terminus réel est conservé comme destination affichée même s'il est hors zone, et
+  son dernier arrêt dans l'emprise reste listé comme un départ légitime. Un premier
+  essai confondait ce cas avec un simple trou au milieu du parcours (une gare non
+  desservie entre deux arrêts retenus) et affichait de faux départs « vers Strasbourg »
+  à la gare de Strasbourg elle-même — corrigé par `verifie.py`, qui aurait dû le
+  détecter d'emblée (ajouté depuis : un motif à une seule station n'est légitime que
+  s'il est marqué tronqué).
+- Tarifs : aucun n'est publié pour la SNCF (contrairement à la CTS, § 3.4). Un lien
+  vers sncf-connect.com est affiché plutôt qu'un prix approximatif.
+
+Non fait : le mode en ligne (Navitia, retards temps réel) reste prévu en phase 7.
+
+---
+
+## 5. Musées et lieux culturels — *réalisé (hors expositions, en ligne)*
+
+Écart par rapport au plan : **pas de curation manuelle**, mais un croisement de trois
+sources ouvertes, chacune pour ce qu'elle sait faire (`build/musees.py`). Un jeu
+100 % « à la main » aurait exigé de collecter et tenir à jour 33 grilles d'horaires ;
+ici elles sont relevées, datées, et régénérables en une commande.
+
+- **OpenStreetMap** — seule source à porter des horaires exploitables
+  (`opening_hours` en syntaxe normalisée) pour toute l'agglomération, Kehl comprise,
+  plus l'indication payant/gratuit et l'accessibilité fauteuil.
+- **data.strasbourg.eu** (jeu `lieux_culture`, 362 fiches) — description officielle en
+  français et lien vers la fiche de la Ville. **Ne contient aucun horaire** (`periods`
+  vide sur les 362 fiches) : à découvrir avant de s'appuyer dessus pour les horaires.
+- **Wikidata / Wikimedia Commons** — une photo *uniquement* quand la propriété P18 la
+  rattache explicitement au lieu (jamais de rapprochement par nom sur Commons, qui
+  produit des faux positifs — même piège que le projet châteaux).
+
+Le rapprochement OSM ↔ fiche officielle se fait par nom **et** proximité (< 250 m) :
+la proximité seule ne suffit pas, plusieurs lieux culturels partagent une adresse
+(le palais Rohan héberge trois musées).
+
+Résultat : **33 lieux**, 22 avec horaires, 17 avec description, 12 avec photo — 23 Ko
+de données + 0,9 Mo de photos WebP. Aucun tarif n'est publié nulle part dans les
+sources croisées : plutôt que d'en inventer un, la fiche affiche seulement un lien
+vers l'établissement.
+
+Le badge **« Ouvert / Fermé / Horaires à vérifier »** est calculé côté client
+(`musees.js`) sur un sous-ensemble volontairement restreint de la syntaxe
+`opening_hours` (jours, plages horaires, `PH`, `24/7`) ; dès qu'une règle en sort
+(mois, n-ième dimanche, vacances scolaires `SH`, commentaire entre guillemets), le
+calcul renonce et affiche l'horaire brut plutôt que d'annoncer un état faux. Inclut
+le calcul des jours fériés d'Alsace-Moselle (Vendredi saint et 26 décembre en plus
+des onze jours fériés nationaux), via l'algorithme de Meeus pour Pâques.
+
+Chaque fiche liste les stations proches (issues de `reseau.js`, § 3-4) et propose
+« M'y rendre », qui préremplit le formulaire d'itinéraire (§ 3.3).
+
+Reste à faire : les expositions en cours (en ligne, agenda `data.strasbourg.eu`,
+phase 7).
+
+---
+
+## 6. POI personnels (restaurants, bars, cinémas…)
+
+- Appui long sur la carte (ou recherche d'adresse) → formulaire : nom, catégorie
+  (restaurant/bar/ciné/commerce/autre), note, commentaire.
+- Stockage **IndexedDB** (pérenne, hors ligne, jamais envoyé nulle part).
+- Export / import JSON (sauvegarde, transfert de téléphone).
+- Couche dédiée sur la carte, filtrable par catégorie, avec icônes distinctes.
+- Bonus possible : catégories OSM déjà dans les tuiles (les restaurants/bars/cinémas
+  existent comme POI vectoriels) → une case « afficher les POI OSM » gratuite en données.
+
+---
+
+## 7. PWA et stratégie hors ligne
+
+- `manifest.webmanifest` + icônes → installable (et TWA Play Store possible ensuite,
+  comme france-departements).
+- **Service worker** :
+  - *precache* à l'installation : app shell, styles, glyphes, sprites, tous les JSON de données ;
+  - `tiles.pmtiles` : téléchargement **à la demande avec barre de progression** (« Installer
+    la carte hors ligne — 45 Mo ») puis Cache Storage ; les requêtes Range sont servies
+    depuis le cache par découpage du blob ;
+  - JSON dynamiques (expositions, prochains GTFS) : *stale-while-revalidate* ;
+  - appels proxy temps réel : *network-only*, jamais mis en cache.
+- Versionnage des données : `data/version.json` (millésime GTFS, date du build) ; en ligne,
+  l'app propose « Nouveaux horaires disponibles — mettre à jour (4 Mo) ».
+- **Piège CSP connu** (projet templiers) : pas de style inline ; attention, MapLibre exige
+  `worker-src blob:` dans la CSP.
+
+---
+
+## 8. Pipeline de données (Python 3.11, local)
+
+```
+build/
+  overpass.py       # accès Overpass mutualisé, bascule entre miroirs (504 fréquents)   [fait]
+  codec.py          # varint base 64 des suites d'entiers, miroir JS dans reseau.js     [fait]
+  rues.py           # Overpass → rues.json (index de recherche)                         [fait]
+  reseau.py         # GTFS CTS + SNCF → reseau / courses / cts-tarifs.json (unifiés)    [fait]
+  traces.py         # relations OSM → cts-traces.geojson (pas de shapes.txt au GTFS)    [fait]
+  musees.py         # OSM + lieux_culture + Commons → musees.json + img/musees/*.webp   [fait]
+  verifie.py        # contrôles : index croisés, décodage, couverture, non-régression  [fait]
+  serveur.py        # serveur de développement gérant les requêtes Range (PMTiles)      [fait]
+  pmtiles.exe       # extraction des tuiles depuis build.protomaps.com                  [fait]
+  expositions.py    # agenda open data → expositions.json (phase 7)
+  cache/            # GTFS, réponses Overpass, jeu lieux_culture (non versionné)
+```
+
+Lancement manuel à chaque changement d'horaires (rentrée, Marché de Noël, été) —
+pas de CI nécessaire, cohérent avec vos habitudes. Les GTFS pèsent quelques dizaines
+de Mo en entrée mais ne sont **jamais** livrés au client tels quels.
+
+---
+
+## 9. Arborescence livrée (GitHub Pages)
+
+```
+strasbourg-eurometropole/
+  index.html            # app complète (une page, fiche en panneau bas)      [fait]
+  app.js                # socle carte, thèmes, 3D, recherche (namespace Carte) [fait]
+  reseau.js             # données CTS+SNCF décodées, calendriers, connexions   [fait]
+  transports.js         # couches carte, fiche arrêt, passages, tarifs         [fait]
+  itineraires.js        # moteur CSA et panneau d'itinéraire                   [fait]
+  musees.js             # couche carte, horaires calculés, fiches, photos      [fait]
+  poi.js  sw.js                                             # phases 6, 5
+  style.css  manifest.webmanifest
+  lib/maplibre-gl.js  lib/maplibre-gl.css                    # vendorisés [fait]
+  lib/pmtiles.js  lib/basemaps.js                            #            [fait]
+  assets/glyphs/…  assets/sprites/v4/…                       #            [fait]
+  icons/…
+  data/
+    tiles.pmtiles       # 31 Mo (< 100 Mo, limite GitHub OK)               [fait]
+    rues.json           # 536 Ko, 6 010 noms                               [fait]
+    reseau.json         # 60 Ko, lignes CTS+SNCF et 599 stations           [fait]
+    courses.json        # 310 Ko, 49 378 courses + 918 calendriers        [fait]
+    cts-traces.geojson  # 110 Ko                                          [fait]
+    cts-tarifs.json     # 3 Ko                                            [fait]
+    musees.json         # 23 Ko, 33 lieux                                 [fait]
+    version.json        # provenance et millésime de chaque jeu           [fait]
+    expositions.json                                       # phase 7
+  img/musees/*.webp     # 0,9 Mo, 12 photos créditées                     [fait]
+  build/                # pipeline Python (non servi)
+```
+
+Poids actuel de l'app complète : **~45 Mo**, dont 31 Mo de tuiles et 12 Mo de glyphes
+de polices (indispensables hors ligne pour les noms de rues). Tout le reste — réseau
+CTS+SNCF (itinéraires compris), musées, photos — ne pèse que **1,3 Mo**. À la phase 5,
+seules les tuiles seront en téléchargement optionnel ; les glyphes pourraient être
+réduits en ne gardant que les plages Unicode latines réellement utilisées.
+
+Budget total téléchargé par l'utilisateur : **~50–80 Mo**, dont l'essentiel (la carte)
+en téléchargement optionnel explicite. L'app fonctionne dès ~6 Mo (carte en ligne),
+le bouton « tout installer hors ligne » complète le reste.
+
+---
+
+## 10. Phases de développement proposées
+
+1. ~~**Socle carte** : MapLibre + PMTiles EMS, styles clair/sombre, 3D, recherche de
+   rues.~~ **Fait** (index des rues via Overpass et non extrait des tuiles : plus
+   simple, et permet d'annoter chaque rue de sa commune pour lever les homonymies.)
+2. ~~**Réseau CTS statique** : arrêts, tracés, horaires théoriques, fiche arrêt
+   « prochains passages ».~~ **Fait**, plus les tarifs (non prévus) et la recherche
+   d'arrêts. Tracés reconstruits depuis OSM faute de `shapes.txt`.
+3. ~~**Itinéraires** : moteur CSA + marche à pied.~~ **Fait.** Le modèle de données a
+   été refondu à cette occasion (§ 3.1), au bénéfice des fiches arrêt et du routage.
+4. ~~**Musées** : dataset, fiches, « M'y rendre ». Gares TER dans le graphe.~~ **Fait.**
+   Écart par rapport au plan : pas de curation manuelle, mais un croisement de trois
+   sources ouvertes (§ 5) ; pas de flux TER dédié, le GTFS national SNCF filtré
+   suffit et vit dans le même fichier que la CTS (§ 4). Reste : les expositions
+   (phase 7, en ligne).
+5. **PWA hors ligne complète** : service worker, installation de la carte, versionnage.
+6. **POI personnels** : IndexedDB, export/import.
+7. **Mode en ligne** : proxy Cloudflare Worker, temps réel CTS, API SNCF, expositions.
+8. **Publication** : GitHub Pages, puis éventuellement TWA Play Store.
+
+Chaque phase livre une app utilisable ; le temps réel arrive volontairement en dernier
+(seule brique qui dépend d'un composant serveur et de tokens).
+
+---
+
+## 11. Risques et points à vérifier
+
+| Point | Risque | Parade |
+|---|---|---|
+| Conditions API CTS | Obtention du token, quotas | Demander le token tôt ; l'app reste complète sans (horaires théoriques) |
+| Range requests GitHub Pages | Nécessaires à PMTiles | Vérifié fonctionnel ; sinon fallback : télécharger tout le fichier en cache d'un coup |
+| Taille tuiles zoom 17 | > 100 Mo si zoom max trop généreux | Zoom 16 partout + 17 sur l'ellipse centre-ville seulement |
+| Licences | GTFS CTS/SNCF (ODbL/licence ouverte), OSM (ODbL) | Page « À propos » avec attributions (obligatoire) |
+| iOS Safari | Quota Cache Storage plus strict | Tester ; PMTiles < 60 Mo passe bien |
+| **Péremption du GTFS** | Les horaires embarqués expirent (actuellement 17/01/2027) | `verifie.py` alerte à moins de 21 jours ; en ligne, proposer la mise à jour (§ 7) |
+| **Perturbations et travaux** | Le GTFS théorique ne dit pas *pourquoi* un arrêt n'est plus desservi | L'API SIRI `general-message` (phase 7) fournit les infos trafic ; hors ligne, la fiche reste factuelle |
+
+### Enseignements techniques des phases 1 à 4
+
+- `python -m http.server` **ne gère pas** les requêtes Range dont PMTiles a besoin →
+  `build/serveur.py`. GitHub Pages, lui, les gère.
+- CSP : MapLibre exige `worker-src blob:` (et `child-src blob:` pour Safari).
+- MapLibre analyse son style dans un `requestAnimationFrame` : en onglet masqué,
+  rien ne s'initialise et `isStyleLoaded()` reste faux indéfiniment. Ne jamais
+  conditionner un chargement de données à l'événement `load` de la carte ; les couches
+  se posent sur `styledata`, qui ne dépend pas du rendu.
+- Un changement de thème reconstruit le style et **supprime les couches maison** :
+  toute fonction d'ajout de couches doit être idempotente et rejouée sur `styledata`.
+- Overpass renvoie très souvent 504/429 → miroirs + cache local obligatoires.
+- `line-dasharray` n'accepte **pas** d'expression liée aux données : un trait
+  pointillé conditionnel exige deux couches filtrées, pas un `["case", …]`.
+- Les sources GeoJSON sont chargées par le worker MapLibre : elles n'apparaissent pas
+  dans `performance.getEntriesByType("resource")`, et `querySourceFeatures` ne renvoie
+  que les tuiles chargées, avec géométrie découpée. Ne pas en conclure à un échec.
+- Le style Protomaps référence trois pictogrammes absents du jeu de sprites officiel
+  (`townhall`, `hospital`, `station`) : un substitut transparent posé sur
+  `styleimagemissing` évite un avertissement par tuile.
+- Un algorithme d'itinéraire correct peut donner de **mauvais conseils** : le CSA
+  optimise l'arrivée station par station, pas le confort. Prévoir explicitement les
+  départages (moins de marche à arrivée égale) et le recalage du point de montée.
+- Toujours **caler l'emprise des données transport sur l'emprise des tuiles**, pas
+  sur une bbox « raisonnable » choisie à part : une gare hors carte n'a aucun sens à
+  l'écran. Les deux bbox vivaient dans des fichiers différents (`build/overpass.py`,
+  `build/reseau.py`) et avaient dérivé l'une de l'autre avant d'être unifiées.
+- Un flux GTFS **national** (comme celui de la SNCF) peut contenir des milliers de
+  calendriers sans rapport avec la zone filtrée : élaguer aux seuls services
+  réellement référencés par une course retenue, sinon le poids explose sans raison
+  (0,88 Mo → 0,31 Mo ici).
+- « La course continue hors zone » et « il y a un trou dans le parcours au milieu de
+  la zone » sont deux choses différentes — seule la première justifie de traiter le
+  dernier arrêt connu comme un terminus/départ. Confondre les deux a produit de faux
+  départs (« vers Strasbourg » à la gare de Strasbourg) : le bug n'était pas visible
+  sans comparer les horaires produits au GTFS source gare par gare.
+- Un jeu de données officiel « le plus complet en apparence » peut être vide sur le
+  champ qui vous intéresse (`lieux_culture` : 362 fiches, zéro horaire) — vérifier le
+  contenu réel avant de bâtir dessus, pas seulement l'existence du jeu.
+- Wikimedia/Commons **rejette les téléchargements dont le user-agent n'identifie pas
+  l'outil et un contact** (politique robots) : sans ça, 429 systématique.
+- Un rapprochement géographique entre deux sources ne doit **jamais** se fier à la
+  seule proximité : plusieurs lieux distincts peuvent partager une adresse (le palais
+  Rohan héberge trois musées) — combiner distance et similarité de nom.
+- Interpréter une syntaxe partiellement standardisée (`opening_hours`) doit **échouer
+  proprement** dès qu'une règle sort du sous-ensemble couvert, plutôt que d'annoncer
+  un état probablement faux. Afficher l'horaire brut en repli coûte peu et évite de
+  mentir.

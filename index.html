@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src blob:; child-src blob:; font-src 'self'">
+  <meta name="theme-color" content="#1a5fb4">
+  <meta name="description" content="Carte détaillée de Strasbourg et de l'Eurométropole, consultable hors ligne : rues, bâtiments 3D, recherche.">
+  <title>Strasbourg &amp; Eurométropole</title>
+  <link rel="stylesheet" href="lib/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="carte"></div>
+
+  <header id="barre">
+    <div id="colonne-gauche">
+      <div id="recherche">
+        <input id="champ-recherche" type="search" placeholder="Rechercher une rue, un arrêt…"
+               autocomplete="off" spellcheck="false"
+               aria-label="Rechercher une rue, un lieu ou un arrêt">
+        <ul id="resultats" hidden></ul>
+      </div>
+      <div id="chips">
+        <button id="chip-itineraire" type="button" class="chip primaire">Itinéraire</button>
+        <button id="chip-musees" type="button" class="chip">Musées</button>
+        <button id="chip-lignes" type="button" class="chip">Lignes</button>
+        <button id="chip-tarifs" type="button" class="chip">Tarifs</button>
+        <button id="chip-isolement" type="button" class="chip actif" hidden></button>
+      </div>
+    </div>
+    <div id="boutons">
+      <button id="btn-transports" type="button" title="Afficher ou masquer le réseau CTS"
+              aria-pressed="true">🚋</button>
+      <button id="btn-3d" type="button" title="Basculer la vue 3D" aria-pressed="false">3D</button>
+      <button id="btn-theme" type="button" title="Basculer clair / sombre">◐</button>
+    </div>
+  </header>
+
+  <aside id="fiche" hidden aria-live="polite">
+    <div id="fiche-entete">
+      <div>
+        <h2 id="fiche-titre"></h2>
+        <p id="fiche-sous-titre"></p>
+      </div>
+      <button id="fiche-fermer" type="button" aria-label="Fermer">✕</button>
+    </div>
+    <div id="fiche-corps"></div>
+  </aside>
+
+  <script src="lib/maplibre-gl.js"></script>
+  <script src="lib/pmtiles.js"></script>
+  <script src="lib/basemaps.js"></script>
+  <!-- ordre imposé par les dépendances : app.js expose Carte, reseau.js les
+       données, itineraires.js le calcul ; transports.js amorce l'ensemble. -->
+  <script src="app.js"></script>
+  <script src="reseau.js"></script>
+  <script src="itineraires.js"></script>
+  <script src="musees.js"></script>
+  <script src="transports.js"></script>
+</body>
+</html>
