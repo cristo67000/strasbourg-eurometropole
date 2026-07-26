@@ -1,5 +1,7 @@
 # Strasbourg & Eurométropole
 
+**En ligne : https://cristo67000.github.io/strasbourg-eurometropole/**
+
 Carte très détaillée de Strasbourg et de l'Eurométropole (+ Kehl), 100 % statique,
 conçue pour être consultable **hors ligne** sur smartphone. Voir
 [ARCHITECTURE.md](ARCHITECTURE.md) pour le plan complet (transports CTS, TER,
@@ -52,6 +54,11 @@ côté serveur. Chip « Mode en ligne » pour coller l'URL du Worker une fois d�
 (voir `worker/README.md`) ; tant qu'aucune URL n'est renseignée, l'app se comporte
 exactement comme en phase 6 (horaires théoriques uniquement). Non fait : les
 expositions en cours, faute de jeu de données ouvert trouvé pour l'agenda culturel.
+
+**Phase 8 réalisée** : publication sur GitHub Pages (dépôt public
+`cristo67000/strasbourg-eurometropole`), vérifiée en ligne — service worker installé,
+814 fichiers précachés, carte et fiches fonctionnelles. Le Worker Cloudflare de la
+phase 7 reste à déployer séparément quand les comptes/tokens seront disponibles.
 
 ## Lancer en local
 

@@ -2,7 +2,8 @@
 
 PWA statique (zéro build, pas de Node), consultable **100 % hors ligne** sur smartphone,
 avec un **mode en ligne optionnel** qui actualise horaires, tarifs et perturbations en temps réel.
-Hébergement : GitHub Pages (compte cristo67000), comme les autres projets.
+Hébergement : GitHub Pages (compte cristo67000), comme les autres projets — en ligne
+depuis le 2026-07-26 sur https://cristo67000.github.io/strasbourg-eurometropole/.
 
 ---
 
@@ -471,7 +472,11 @@ le bouton « tout installer hors ligne » complète le reste.
    faute de compte Cloudflare configuré sur ce poste — le Worker attend dans
    `worker/`, prêt à déployer (`worker/README.md`). Écart : pas d'expositions,
    aucune source ouverte trouvée (§ 3.2).
-8. **Publication** : GitHub Pages, puis éventuellement TWA Play Store.
+8. ~~**Publication** : GitHub Pages, puis éventuellement TWA Play Store.~~ **Fait
+   pour la partie GitHub Pages** : dépôt public `cristo67000/strasbourg-eurometropole`,
+   Pages activé sur `master`/`/`, vérifié en ligne (814 fichiers précachés par le
+   service worker, à jour). Écart : le TWA Play Store n'a pas été demandé, reste
+   pour plus tard si besoin.
 
 Chaque phase livre une app utilisable ; le temps réel arrive volontairement en dernier
 (seule brique qui dépend d'un composant serveur et de tokens).
