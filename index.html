@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src blob:; child-src blob:; font-src 'self'">
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self'">
   <meta name="theme-color" content="#1a5fb4">
   <meta name="description" content="Carte détaillée de Strasbourg et de l'Eurométropole, consultable hors ligne : rues, bâtiments 3D, recherche.">
   <title>Strasbourg &amp; Eurométropole</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-512.png">
   <link rel="stylesheet" href="lib/maplibre-gl.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -27,6 +30,7 @@
         <button id="chip-musees" type="button" class="chip">Musées</button>
         <button id="chip-lignes" type="button" class="chip">Lignes</button>
         <button id="chip-tarifs" type="button" class="chip">Tarifs</button>
+        <button id="chip-horsligne" type="button" class="chip">Carte hors ligne</button>
         <button id="chip-isolement" type="button" class="chip actif" hidden></button>
       </div>
     </div>
@@ -59,5 +63,6 @@
   <script src="itineraires.js"></script>
   <script src="musees.js"></script>
   <script src="transports.js"></script>
+  <script src="pwa.js"></script>
 </body>
 </html>

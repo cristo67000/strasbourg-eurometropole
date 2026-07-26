@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Strasbourg & Eurométropole — Carte hors ligne",
+  "short_name": "Strasbourg EMS",
+  "description": "Carte détaillée de Strasbourg et de l'Eurométropole hors ligne : rues, bâtiments 3D, réseau CTS et TER, itinéraires porte-à-porte, musées et lieux culturels. Géolocalisation traitée sur l'appareil.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1c1c1c",
+  "theme_color": "#1a5fb4",
+  "categories": ["travel", "navigation", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

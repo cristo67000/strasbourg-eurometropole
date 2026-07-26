@@ -283,21 +283,41 @@ phase 7).
 
 ---
 
-## 7. PWA et stratégie hors ligne
+## 7. PWA et stratégie hors ligne — *réalisé*
 
-- `manifest.webmanifest` + icônes → installable (et TWA Play Store possible ensuite,
-  comme france-departements).
-- **Service worker** :
-  - *precache* à l'installation : app shell, styles, glyphes, sprites, tous les JSON de données ;
-  - `tiles.pmtiles` : téléchargement **à la demande avec barre de progression** (« Installer
-    la carte hors ligne — 45 Mo ») puis Cache Storage ; les requêtes Range sont servies
-    depuis le cache par découpage du blob ;
-  - JSON dynamiques (expositions, prochains GTFS) : *stale-while-revalidate* ;
-  - appels proxy temps réel : *network-only*, jamais mis en cache.
-- Versionnage des données : `data/version.json` (millésime GTFS, date du build) ; en ligne,
-  l'app propose « Nouveaux horaires disponibles — mettre à jour (4 Mo) ».
-- **Piège CSP connu** (projet templiers) : pas de style inline ; attention, MapLibre exige
-  `worker-src blob:` dans la CSP.
+- `manifest.webmanifest` + icônes (`build/icones.py`, silhouette de flèche gothique sur
+  fond bleu d'accent — générées, pas dessinées à la main) → installable (TWA Play Store
+  resterait possible ensuite, comme france-departements).
+- **Service worker (`sw.js`)**, deux caches distincts :
+  - `strasbourg-app-<build>` : app shell, styles, glyphes, sprites, icônes, JSON de
+    données, photos de musées — 812 fichiers précachés à l'installation, listés par
+    `build/manifeste.py` (écrire cette liste à la main était impraticable : 769 fichiers
+    de glyphes). Stratégie *réseau d'abord, cache en secours* pour le code et les JSON
+    (légers, mis à jour à chaque build), *cache d'abord* pour `lib/`, `assets/`,
+    `icons/`, `img/` (lourds, statiques). Anciennes versions du cache purgées à l'activation.
+  - `strasbourg-tuiles-v1` : `tiles.pmtiles` (~31 Mo), **jamais précaché** — téléchargé à
+    la demande via le bouton « Carte hors ligne » (`pwa.js`), avec barre de progression
+    (lecture du flux par morceaux, `ReadableStream`). Un petit marqueur JSON
+    (`data/tiles-version.json`, copie de la section `tuiles` de `version.json`) est stocké
+    à côté pour détecter une carte périmée au prochain chargement en ligne.
+- **Astuce Range sur PMTiles, la vraie difficulté de cette phase** : le Cache Storage ne
+  sait pas satisfaire une requête Range sur une entrée mise en cache. Solution : au
+  premier accès, `sw.js` charge le blob complet en mémoire (`ArrayBuffer`, variable de
+  module) une seule fois, puis découpe lui-même chaque plage demandée — pmtiles.js émet
+  des dizaines de petites requêtes Range par session de navigation sur la carte, et
+  re-décoder les 31 Mo à chaque fois serait inutilisable. La page prévient le SW par
+  `postMessage` après avoir installé/supprimé la carte pour invalider ce cache mémoire.
+- Testé en conditions réelles : app complète (carte, recherche, réseau CTS+SNCF, fiches)
+  fonctionnelle serveur de développement **coupé**, y compris la recherche croisée
+  rues/arrêts qui dépend de deux JSON distincts chargés depuis le cache.
+- **Piège CSP découvert ici** : `worker-src blob:` (sans `'self'`) bloque
+  l'**enregistrement** du service worker lui-même — l'enregistrement d'un service worker
+  est gouverné par `worker-src`, qui ne retombe pas sur `script-src` dès qu'il est
+  présent. Corrigé en `worker-src 'self' blob:; child-src 'self' blob:;`. Le piège
+  « MapLibre exige `worker-src blob:` » (projet templiers) n'était donc que la moitié du
+  problème pour une PWA installable.
+- Non fait à cette phase : bannière d'installation « Ajouter à l'écran d'accueil »
+  personnalisée — l'icône native du navigateur suffit, comme sur les autres projets.
 
 ---
 
@@ -314,6 +334,8 @@ build/
   verifie.py        # contrôles : index croisés, décodage, couverture, non-régression  [fait]
   serveur.py        # serveur de développement gérant les requêtes Range (PMTiles)      [fait]
   pmtiles.exe       # extraction des tuiles depuis build.protomaps.com                  [fait]
+  icones.py         # Pillow → icons/icon-*.png (flèche gothique, sans image source)    [fait]
+  manifeste.py      # énumère l'app shell → data/precache.json (précache du SW)         [fait]
   expositions.py    # agenda open data → expositions.json (phase 7)
   cache/            # GTFS, réponses Overpass, jeu lieux_culture (non versionné)
 ```
@@ -334,12 +356,14 @@ strasbourg-eurometropole/
   transports.js         # couches carte, fiche arrêt, passages, tarifs         [fait]
   itineraires.js        # moteur CSA et panneau d'itinéraire                   [fait]
   musees.js             # couche carte, horaires calculés, fiches, photos      [fait]
-  poi.js  sw.js                                             # phases 6, 5
-  style.css  manifest.webmanifest
+  pwa.js                # enregistrement SW, téléchargement carte + progression [fait]
+  sw.js                 # service worker : précache app shell, cache tuiles    [fait]
+  poi.js                                                    # phase 6
+  style.css  manifest.webmanifest                                             #  [fait]
   lib/maplibre-gl.js  lib/maplibre-gl.css                    # vendorisés [fait]
   lib/pmtiles.js  lib/basemaps.js                            #            [fait]
   assets/glyphs/…  assets/sprites/v4/…                       #            [fait]
-  icons/…
+  icons/icon-192.png  icon-512.png  icon-maskable-512.png    #            [fait]
   data/
     tiles.pmtiles       # 31 Mo (< 100 Mo, limite GitHub OK)               [fait]
     rues.json           # 536 Ko, 6 010 noms                               [fait]
@@ -349,6 +373,7 @@ strasbourg-eurometropole/
     cts-tarifs.json     # 3 Ko                                            [fait]
     musees.json         # 23 Ko, 33 lieux                                 [fait]
     version.json        # provenance et millésime de chaque jeu           [fait]
+    precache.json        # liste des 812 fichiers de l'app shell (SW)     [fait]
     expositions.json                                       # phase 7
   img/musees/*.webp     # 0,9 Mo, 12 photos créditées                     [fait]
   build/                # pipeline Python (non servi)
@@ -381,7 +406,10 @@ le bouton « tout installer hors ligne » complète le reste.
    sources ouvertes (§ 5) ; pas de flux TER dédié, le GTFS national SNCF filtré
    suffit et vit dans le même fichier que la CTS (§ 4). Reste : les expositions
    (phase 7, en ligne).
-5. **PWA hors ligne complète** : service worker, installation de la carte, versionnage.
+5. ~~**PWA hors ligne complète** : service worker, installation de la carte,
+   versionnage.~~ **Fait** (§ 7). Écart : la barre de progression et le téléchargement
+   se font depuis la page (`pwa.js`) et non par messages vers le service worker — plus
+   simple, l'API Cache Storage est accessible depuis les deux contextes.
 6. **POI personnels** : IndexedDB, export/import.
 7. **Mode en ligne** : proxy Cloudflare Worker, temps réel CTS, API SNCF, expositions.
 8. **Publication** : GitHub Pages, puis éventuellement TWA Play Store.
@@ -451,3 +479,15 @@ Chaque phase livre une app utilisable ; le temps réel arrive volontairement en 
   proprement** dès qu'une règle sort du sous-ensemble couvert, plutôt que d'annoncer
   un état probablement faux. Afficher l'horaire brut en repli coûte peu et évite de
   mentir.
+- Le Cache Storage ne satisfait pas une requête Range sur une réponse mise en cache
+  complète : pour un gros fichier lu par plages (PMTiles), il faut charger le blob en
+  mémoire une fois puis découper soi-même chaque plage dans le service worker — sinon
+  chaque requête Range re-décode le fichier entier.
+- `worker-src` dans la CSP gouverne aussi l'**enregistrement** du service worker (pas
+  seulement les Web Workers de MapLibre) et ne retombe pas sur `script-src` une fois
+  présent : `worker-src blob:` seul bloque `serviceWorker.register()` d'un script même
+  origine. Il faut `worker-src 'self' blob:`.
+- Une liste de fichiers à précacher écrite à la main devient vite fausse (769 glyphes
+  ici) : un petit script (`build/manifeste.py`) qui énumère les dossiers concernés à
+  chaque build et écrit `data/precache.json` est plus fiable qu'une liste figée dans
+  `sw.js`.

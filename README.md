@@ -33,6 +33,13 @@ Commons avec crédit, sans jamais inventer d'horaire ni de tarif. Un indicateur
 compris, avec repli honnête sur l'horaire brut quand la syntaxe dépasse ce
 qui est interprété.
 
+**Phase 5 réalisée** : application installable et 100 % utilisable hors ligne.
+Un service worker précache le code, les styles, les polices et toutes les
+données (812 fichiers) dès la première visite ; le fond de carte
+(`tiles.pmtiles`, ~31 Mo) se télécharge à part, à la demande, via le bouton
+« Carte hors ligne », avec barre de progression. Testé serveur coupé :
+carte, recherche, réseau et fiches restent pleinement fonctionnels.
+
 ## Lancer en local
 
 Le serveur standard de Python ne gère pas les requêtes HTTP *Range* dont
@@ -73,6 +80,19 @@ puis ouvrir http://localhost:8135
 
   Option `--sans-photos` pour aller plus vite (les fichiers `img/musees/*.webp`
   ne sont alors ni rafraîchis ni supprimés).
+
+- **Liste de précache du service worker** (à refaire après tout ajout ou
+  suppression de fichier servi par l'app) :
+
+  ```
+  python build/manifeste.py
+  ```
+
+- **Icônes de l'app** (rarement nécessaire, seulement si le motif change) :
+
+  ```
+  python build/icones.py
+  ```
 
 - **Tracés des lignes** (relations OSM ; le GTFS CTS n'a pas de `shapes.txt`) :
 
