@@ -365,9 +365,25 @@ site s'il existe.
 décodage `opening_hours` que `etatOuverture` — un seul parseur, deux sorties) : plutôt
 que le seul texte brut OSM, la fiche affiche une ligne par plage, ex. « Du mardi au
 samedi : de 14h à 20h » pour `Tu-Sa 14:00-20:00`. Repli sur l'horaire brut si la
-syntaxe dépasse le sous-ensemble reconnu (mois, vacances scolaires `SH`, commentaire
-entre guillemets) — même principe que partout ailleurs dans le projet : ne rien
-reformuler qu'on ne sait pas interpréter correctement.
+syntaxe dépasse le sous-ensemble reconnu (vacances scolaires `SH`, dates absolues,
+horaires ouverts `11:30+`, numéros de semaine, commentaire entre guillemets) — même
+principe que partout ailleurs dans le projet : ne rien reformuler qu'on ne sait pas
+interpréter correctement.
+
+Le sous-ensemble reconnu couvre aussi les **plages de mois** (`Jul-Aug 13:00-18:00` :
+horaires d'été/hiver, très courant sur les équipements municipaux — bibliothèques,
+médiathèques, bureaux de poste) — ajouté après coup : le premier jet renonçait dès
+qu'un mois apparaissait, ce qui repliait sur le texte brut *toute* une médiathèque dès
+qu'une seule de ses règles avait un horaire saisonnier. Piège rencontré en l'écrivant :
+plusieurs fiches OSM réelles enchaînent deux règles par une simple **virgule** au lieu
+du point-virgule attendu par la spec (`Jul-Aug Tu-Fr 13:00-18:00, Jul-Aug Sa
+10:00-12:00,14:00-18:00`, ou côté bars/restaurants de nuit `Su-Th 17:00-03:00, Fr,Sa
+17:00-05:00`) — une virgule ne vaut césure de règle que si elle suit un horaire
+`HH:MM` **et** précède un nouveau mois/jour, jamais à l'intérieur d'une liste comme
+`Fr,Sa` (repérage par lookbehind/lookahead ciblés, pas une réécriture générale de
+l'analyseur). Testé sur les 920 lieux du jeu de données : 840 (91 %) obtiennent un
+résumé, 0 sortie mal formée, le reste (dates d'exception, horaires ouverts, semaines)
+replie correctement sur le brut.
 
 Résultat : **1 599 lieux** (1 091 restaurants, 180 cafés, 169 bars, 75 bureaux de
 poste, 38 librairies, 46 médiathèques), 920 avec horaires, 676 avec site web, 262 Ko.

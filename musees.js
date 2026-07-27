@@ -17,6 +17,10 @@ var Musees = (function () {
   var JOURS_OSM = { Mo: 0, Tu: 1, We: 2, Th: 3, Fr: 4, Sa: 5, Su: 6 };
   var JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi",
                   "samedi", "dimanche"];
+  var MOIS_OSM = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+                    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  var MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin",
+                 "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
   // ---------- jours fériés (Alsace-Moselle) ----------
 
@@ -68,33 +72,64 @@ var Musees = (function () {
     return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   }
 
-  /* Découpe un `opening_hours` en règles {specJours, specHeures}, sans les
-     appliquer à une date précise — partagé par `intervalles()` (état à un
-     instant donné) et `resume()` (résumé hebdomadaire lisible). `null` dès
-     que la syntaxe dépasse le sous-ensemble reconnu (mois, semaines,
-     n-ième jour, vacances scolaires `SH`, commentaire libre…) : on préfère
-     ne rien affirmer plutôt qu'annoncer un état ou un résumé faux. */
+  /* Découpe un `opening_hours` en règles {specMois, specJours, specHeures},
+     sans les appliquer à une date précise — partagé par `intervalles()`
+     (état à un instant donné) et `resume()` (résumé hebdomadaire lisible).
+     `null` dès que la syntaxe dépasse le sous-ensemble reconnu (semaines,
+     n-ième jour, dates absolues, vacances scolaires `SH`, commentaire
+     libre…) : on préfère ne rien affirmer plutôt qu'annoncer un état ou un
+     résumé faux. Les plages de mois (« Jul-Aug 13:00-18:00 », très
+     courantes sur les équipements municipaux — horaires d'été distincts —
+     sont en revanche reconnues : assez fréquentes pour valoir la peine. */
   function analyserRegles(horaires) {
     if (!horaires) return null;
     var texte = horaires.trim();
     if (/["]/.test(texte)) return null;               // commentaire libre
-    if (/^24\/7$/.test(texte)) return [{ specJours: "", specHeures: "24/7" }];
+    if (/^24\/7$/.test(texte)) return [{ specMois: "", specJours: "", specHeures: "24/7" }];
 
+    var motifMois = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
+    var regexMois = new RegExp(
+      "^((?:" + motifMois + "(?:-" + motifMois + ")?)(?:,\\s*" +
+      motifMois + "(?:-" + motifMois + ")?)*)\\s*:?\\s+(.*)$"
+    );
     var motifJours = "(?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)";
     var regexRegle = new RegExp(
-      "^((?:" + motifJours + "(?:-" + motifJours + ")?)(?:," +
+      "^((?:" + motifJours + "(?:-" + motifJours + ")?)(?:,\\s*" +
       motifJours + "(?:-" + motifJours + ")?)*)?\\s*(.*)$"
     );
+    // certaines fiches OSM enchaînent deux clauses par une simple virgule au
+    // lieu du point-virgule attendu (« Jul-Aug Tu-Fr 13:00-18:00, Jul-Aug Sa
+    // 10:00-12:00,14:00-18:00 ») : une virgule immédiatement suivie d'une
+    // nouvelle plage de mois vaut donc séparateur de règle, pas de plage
+    // horaire — sans quoi tout le champ serait rejeté pour cette seule
+    // irrégularité de ponctuation.
+    var regexReprise = new RegExp(
+      "(?<=\\d{1,2}:\\d{2}),\\s*(?=" + motifMois + "(?:-" + motifMois + ")?[\\s:])", "g"
+    );
+    // même irrégularité, mais entre deux groupes de jours plutôt que de mois
+    // (fréquent sur les bars/restaurants de nuit) : « Su-Th 17:00-03:00,
+    // Fr,Sa 17:00-05:00 » — à ne pas confondre avec la virgule interne à
+    // « Fr,Sa », qui n'est jamais précédée d'un horaire.
+    var regexRepriseJours = new RegExp(
+      "(?<=\\d{1,2}:\\d{2}),\\s*(?=" + motifJours + "(?:[-,]|\\s))", "g"
+    );
+    texte = texte.replace(regexReprise, ";").replace(regexRepriseJours, ";");
 
     var sortie = [];
     var morceaux = texte.split(";");
     for (var r = 0; r < morceaux.length; r++) {
       var regle = morceaux[r].trim();
       if (!regle) continue;
-      if (/[:\[]/.test(regle.replace(/\d{1,2}:\d{2}/g, ""))) return null;
-      // mois, semaines, n-ième jour… : hors du sous-ensemble reconnu
 
-      var m = regexRegle.exec(regle);
+      var specMois = "";
+      var reste = regle;
+      var mM = regexMois.exec(regle);
+      if (mM) { specMois = mM[1].trim(); reste = mM[2].trim(); }
+
+      if (/[:\[]/.test(reste.replace(/\d{1,2}:\d{2}/g, ""))) return null;
+      // semaines, n-ième jour, dates absolues… : hors du sous-ensemble reconnu
+
+      var m = regexRegle.exec(reste);
       if (!m) return null;
       var specJours = (m[1] || "").trim();
       var specHeures = (m[2] || "").trim();
@@ -103,9 +138,29 @@ var Musees = (function () {
       if (specJours.split(",").some(function (b) { return b.trim() === "SH"; })) {
         return null;
       }
-      sortie.push({ specJours: specJours, specHeures: specHeures });
+      sortie.push({ specMois: specMois, specJours: specJours, specHeures: specHeures });
     }
     return sortie;
+  }
+
+  function moisConcerne(specMois, mois) {
+    if (!specMois) return true;
+    var blocs = specMois.split(",");
+    for (var b = 0; b < blocs.length; b++) {
+      var bloc = blocs[b].trim();
+      var bornes = bloc.split("-");
+      var debut = MOIS_OSM[bornes[0]];
+      if (debut === undefined) return false;
+      if (bornes.length === 1) {
+        if (mois === debut) return true;
+      } else {
+        var fin = MOIS_OSM[bornes[1]];
+        if (fin === undefined) return false;
+        if (fin >= debut ? (mois >= debut && mois <= fin)
+                         : (mois >= debut || mois <= fin)) return true;
+      }
+    }
+    return false;
   }
 
   /* Intervalles d'ouverture pour une date, ou null si la syntaxe dépasse le
@@ -120,7 +175,9 @@ var Musees = (function () {
     var resultat = [];
 
     for (var r = 0; r < regles.length; r++) {
-      var specJours = regles[r].specJours, specHeures = regles[r].specHeures;
+      var specMois = regles[r].specMois, specJours = regles[r].specJours,
+          specHeures = regles[r].specHeures;
+      if (!moisConcerne(specMois, date.getMonth())) continue;
 
       var concerne;
       if (!specJours) {
@@ -182,6 +239,23 @@ var Musees = (function () {
     return specJours.split(",").map(function (b) { return segmentJours(b.trim()); }).join(", ");
   }
 
+  function segmentMois(bloc) {
+    var bornes = bloc.split("-");
+    if (bornes.length === 1) return MOIS_FR[MOIS_OSM[bornes[0]]];
+    return "de " + MOIS_FR[MOIS_OSM[bornes[0]]] + " à " + MOIS_FR[MOIS_OSM[bornes[1]]];
+  }
+
+  function texteMois(specMois) {
+    return specMois.split(",").map(function (b) { return segmentMois(b.trim()); }).join(", ");
+  }
+
+  /* « quand » complet d'une règle : mois (s'il y en a) puis jours, ex.
+     « de juillet à août, du mardi au vendredi ». */
+  function texteQuand(specMois, specJours) {
+    var jours = texteJours(specJours);
+    return specMois ? texteMois(specMois) + ", " + jours : jours;
+  }
+
   function majuscule(texte) {
     return texte.charAt(0).toUpperCase() + texte.slice(1);
   }
@@ -202,9 +276,10 @@ var Musees = (function () {
 
     var lignes = [];
     for (var r = 0; r < regles.length; r++) {
-      var specJours = regles[r].specJours, specHeures = regles[r].specHeures;
+      var specMois = regles[r].specMois, specJours = regles[r].specJours,
+          specHeures = regles[r].specHeures;
       if (/^(off|closed)$/i.test(specHeures)) {
-        lignes.push("Fermé " + texteJours(specJours));
+        lignes.push("Fermé " + texteQuand(specMois, specJours));
         continue;
       }
       if (!specHeures) return null;
@@ -217,7 +292,7 @@ var Musees = (function () {
         if (d === null || f === null) return null;
         texteHeures.push("de " + d + " à " + f);
       }
-      lignes.push(majuscule(texteJours(specJours)) + " : " + texteHeures.join(" et "));
+      lignes.push(majuscule(texteQuand(specMois, specJours)) + " : " + texteHeures.join(" et "));
     }
     return lignes;
   }
