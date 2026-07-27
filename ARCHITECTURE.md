@@ -576,6 +576,14 @@ Chaque phase livre une app utilisable ; le temps réel arrive volontairement en 
   client (`app.js`, `construireStyle`) en excluant `kind_detail == "locality"` de
   cette seule couche — décision purement esthétique (bruit cartographique), les
   autres couches (rues, réseau CTS/SNCF) n'étaient pas concernées.
+- Même mécanique réutilisée pour la couche `pois` du fond Protomaps (commerces et
+  services génériques, indépendante des musées/POI perso de l'app) : son filtre
+  liste ses genres dans un `["in", ["get","kind"], ["literal",[…]]]` — retrancher des
+  valeurs de cette liste dans `construireStyle` masque une catégorie entière sans
+  toucher aux autres ni réécrire le filtre. Retirés sur demande (bruit visuel, pas une
+  erreur de donnée comme pour les Flurnamen) : `fast_food` (snacks/kebabs/nems),
+  `supermarket` + `convenience` (épiceries/supérettes), `beauty` (instituts de
+  beauté) — `restaurant`, `cafe`, `bar`, `books`, `electronics`, `clothes` gardés.
 - Un flux GTFS **national** (comme celui de la SNCF) peut contenir des milliers de
   calendriers sans rapport avec la zone filtrée : élaguer aux seuls services
   réellement référencés par une course retenue, sinon le poids explose sans raison

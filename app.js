@@ -40,6 +40,21 @@ var Carte = (function () {
       }
     });
 
+    // Retire du fond de carte les catégories de commerces jugées superflues
+    // (snacks/fast-food, épiceries/supérettes, magasins de beauté) — la
+    // couche « pois » du fond Protomaps liste ses genres dans un ["in",
+    // ["get","kind"], ["literal",[...]]] : on retranche simplement ces
+    // valeurs de la liste plutôt que de réécrire tout le filtre.
+    var GENRES_POI_EXCLUS = ["fast_food", "supermarket", "convenience", "beauty"];
+    couches.forEach(function (c) {
+      if (c.id !== "pois") return;
+      var clauseGenre = c.filter[1]; // ["in", ["get","kind"], ["literal",[...]]]
+      var genres = clauseGenre[2][1];
+      clauseGenre[2] = ["literal", genres.filter(function (g) {
+        return GENRES_POI_EXCLUS.indexOf(g) === -1;
+      })];
+    });
+
     // Couche 3D maison (les tuiles portent height / min_height)
     couches.push({
       id: "batiments-3d",
