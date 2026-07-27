@@ -68,34 +68,59 @@ var Musees = (function () {
     return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   }
 
+  /* Découpe un `opening_hours` en règles {specJours, specHeures}, sans les
+     appliquer à une date précise — partagé par `intervalles()` (état à un
+     instant donné) et `resume()` (résumé hebdomadaire lisible). `null` dès
+     que la syntaxe dépasse le sous-ensemble reconnu (mois, semaines,
+     n-ième jour, vacances scolaires `SH`, commentaire libre…) : on préfère
+     ne rien affirmer plutôt qu'annoncer un état ou un résumé faux. */
+  function analyserRegles(horaires) {
+    if (!horaires) return null;
+    var texte = horaires.trim();
+    if (/["]/.test(texte)) return null;               // commentaire libre
+    if (/^24\/7$/.test(texte)) return [{ specJours: "", specHeures: "24/7" }];
+
+    var motifJours = "(?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)";
+    var regexRegle = new RegExp(
+      "^((?:" + motifJours + "(?:-" + motifJours + ")?)(?:," +
+      motifJours + "(?:-" + motifJours + ")?)*)?\\s*(.*)$"
+    );
+
+    var sortie = [];
+    var morceaux = texte.split(";");
+    for (var r = 0; r < morceaux.length; r++) {
+      var regle = morceaux[r].trim();
+      if (!regle) continue;
+      if (/[:\[]/.test(regle.replace(/\d{1,2}:\d{2}/g, ""))) return null;
+      // mois, semaines, n-ième jour… : hors du sous-ensemble reconnu
+
+      var m = regexRegle.exec(regle);
+      if (!m) return null;
+      var specJours = (m[1] || "").trim();
+      var specHeures = (m[2] || "").trim();
+      // vacances scolaires (SH) : jamais interprétées, quelle que soit la
+      // date demandée — invalide tout le champ plutôt qu'un seul jour
+      if (specJours.split(",").some(function (b) { return b.trim() === "SH"; })) {
+        return null;
+      }
+      sortie.push({ specJours: specJours, specHeures: specHeures });
+    }
+    return sortie;
+  }
+
   /* Intervalles d'ouverture pour une date, ou null si la syntaxe dépasse le
      sous-ensemble reconnu (on préfère ne rien affirmer). */
   function intervalles(horaires, date) {
-    if (!horaires) return null;
-    var texte = horaires.trim();
-    if (/["]/.test(texte)) return null;              // commentaire libre
-    if (/^24\/7$/.test(texte)) return [[0, 1440]];
+    var regles = analyserRegles(horaires);
+    if (regles === null) return null;
+    if (regles.length === 1 && regles[0].specHeures === "24/7") return [[0, 1440]];
 
     var jour = (date.getDay() + 6) % 7;
     var ferie = estFerie(date);
     var resultat = [];
 
-    var regles = texte.split(";");
     for (var r = 0; r < regles.length; r++) {
-      var regle = regles[r].trim();
-      if (!regle) continue;
-      if (/[:\[]/.test(regle.replace(/\d{1,2}:\d{2}/g, ""))) return null;
-      // mois, semaines, n-ième jour… : hors du sous-ensemble reconnu
-
-      var motifJours = "(?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)";
-      var m = new RegExp(
-        "^((?:" + motifJours + "(?:-" + motifJours + ")?)(?:," +
-        motifJours + "(?:-" + motifJours + ")?)*)?\\s*(.*)$"
-      ).exec(regle);
-      if (!m) return null;
-
-      var specJours = (m[1] || "").trim();
-      var specHeures = (m[2] || "").trim();
+      var specJours = regles[r].specJours, specHeures = regles[r].specHeures;
 
       var concerne;
       if (!specJours) {
@@ -106,7 +131,6 @@ var Musees = (function () {
         for (var b = 0; b < blocs.length; b++) {
           var bloc = blocs[b].trim();
           if (bloc === "PH") { if (ferie) concerne = true; continue; }
-          if (bloc === "SH") return null;   // vacances scolaires : inconnues
           var bornes = bloc.split("-");
           var debut = JOURS_OSM[bornes[0]];
           if (debut === undefined) return null;
@@ -140,6 +164,62 @@ var Musees = (function () {
     }
     resultat.sort(function (a, b) { return a[0] - b[0]; });
     return resultat;
+  }
+
+  /* Résumé hebdomadaire lisible, une ligne par règle — ex. « Du mardi au
+     samedi : de 12h à 14h et de 18h à 21h » — ou `null` si `analyserRegles`
+     renonce. Volontairement distinct de `etatOuverture` (qui ne parle que de
+     l'instant présent) : ici on veut la semaine entière d'un coup d'œil. */
+  function segmentJours(bloc) {
+    if (bloc === "PH") return "les jours fériés";
+    var bornes = bloc.split("-");
+    if (bornes.length === 1) return "le " + JOURS_FR[JOURS_OSM[bornes[0]]];
+    return "du " + JOURS_FR[JOURS_OSM[bornes[0]]] + " au " + JOURS_FR[JOURS_OSM[bornes[1]]];
+  }
+
+  function texteJours(specJours) {
+    if (!specJours) return "tous les jours";
+    return specJours.split(",").map(function (b) { return segmentJours(b.trim()); }).join(", ");
+  }
+
+  function majuscule(texte) {
+    return texte.charAt(0).toUpperCase() + texte.slice(1);
+  }
+
+  function texteHeure(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+    if (!m) return null;
+    var h = parseInt(m[1], 10), mn = m[2];
+    return h + "h" + (mn === "00" ? "" : mn);
+  }
+
+  function resume(horaires) {
+    var regles = analyserRegles(horaires);
+    if (regles === null) return null;
+    if (regles.length === 1 && regles[0].specHeures === "24/7") {
+      return ["Ouvert 24 h/24, 7 jours sur 7"];
+    }
+
+    var lignes = [];
+    for (var r = 0; r < regles.length; r++) {
+      var specJours = regles[r].specJours, specHeures = regles[r].specHeures;
+      if (/^(off|closed)$/i.test(specHeures)) {
+        lignes.push("Fermé " + texteJours(specJours));
+        continue;
+      }
+      if (!specHeures) return null;
+      var plages = specHeures.split(",");
+      var texteHeures = [];
+      for (var p = 0; p < plages.length; p++) {
+        var bornes = plages[p].trim().split("-");
+        if (bornes.length !== 2) return null;
+        var d = texteHeure(bornes[0]), f = texteHeure(bornes[1]);
+        if (d === null || f === null) return null;
+        texteHeures.push("de " + d + " à " + f);
+      }
+      lignes.push(majuscule(texteJours(specJours)) + " : " + texteHeures.join(" et "));
+    }
+    return lignes;
   }
 
   /* {etat, texte} : « ouvert », « ferme » ou « inconnu ». */
@@ -460,6 +540,7 @@ var Musees = (function () {
     // exposés pour les contrôles
     etatOuverture: etatOuverture,
     intervalles: intervalles,
+    resume: resume,
     estFerie: estFerie,
     donnees: function () { return donnees; }
   };

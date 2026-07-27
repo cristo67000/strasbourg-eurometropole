@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Restaurants, bureaux de poste, librairies et médiathèques -> data/commerces.json.
+"""Restaurants, cafés, bars, bureaux de poste, librairies et médiathèques ->
+data/commerces.json.
 
 Seule source : OpenStreetMap (via Overpass), qui porte `opening_hours` et
 `website`/`contact:website` pour ces catégories — aucune autre source ouverte
@@ -23,6 +24,8 @@ REQUETE = """
 [out:json][timeout:200];
 (
   nwr[amenity=restaurant](%f,%f,%f,%f);
+  nwr[amenity=cafe](%f,%f,%f,%f);
+  nwr[amenity=bar](%f,%f,%f,%f);
   nwr[amenity=post_office](%f,%f,%f,%f);
   nwr[shop=books](%f,%f,%f,%f);
   nwr[amenity=library](%f,%f,%f,%f);
@@ -32,6 +35,8 @@ out tags center;
 
 CATEGORIE_PAR_TAGS = [
     (("amenity", "restaurant"), "restaurant"),
+    (("amenity", "cafe"), "cafe"),
+    (("amenity", "bar"), "bar"),
     (("amenity", "post_office"), "post_office"),
     (("shop", "books"), "books"),
     (("amenity", "library"), "library"),
@@ -47,7 +52,7 @@ def categorie(tags):
 
 def lire_osm():
     bbox = overpass.BBOX
-    requete = REQUETE % (bbox * 4)
+    requete = REQUETE % (bbox * 6)
     data = overpass.interroger(requete)
     lieux = []
     for e in data["elements"]:

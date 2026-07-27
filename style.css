@@ -564,6 +564,18 @@ table.tarifs .prix {
   word-break: break-word;
 }
 
+.horaires-resume {
+  list-style: none;
+  margin: 0 0 8px 0;
+  padding: 0;
+}
+
+.horaires-resume li {
+  font-size: 13.5px;
+  color: var(--texte);
+  padding: 3px 0;
+}
+
 .description-lieu {
   margin: 0 0 10px 0;
   font-size: 13.5px;

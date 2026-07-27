@@ -70,10 +70,11 @@ et l'arrêt suivant — voir [ARCHITECTURE.md § 3.6](ARCHITECTURE.md#36-icônes
 population réelle, ex. Cronenbourg/Schiltigheim) ainsi que les snacks/fast-food,
 épiceries/supérettes et instituts de beauté ne sont plus affichés.
 
-**Restaurants, bureaux de poste, librairies, médiathèques** : un clic sur ces points déjà
-affichés par le fond de carte ouvre désormais une bulle avec l'état d'ouverture, les
-horaires bruts et le site web, quand OpenStreetMap les renseigne — voir
-[ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-bureaux-de-poste-librairies-médiathèques--réalisé).
+**Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques** : un clic sur
+ces points déjà affichés par le fond de carte ouvre une bulle avec l'état d'ouverture,
+un résumé lisible des horaires (« Du mardi au samedi : de 14h à 20h ») et le site web,
+quand OpenStreetMap les renseigne — voir
+[ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-cafés-bars-bureaux-de-poste-librairies-médiathèques--réalisé).
 
 ## Lancer en local
 
@@ -116,8 +117,8 @@ puis ouvrir http://localhost:8135
   Option `--sans-photos` pour aller plus vite (les fichiers `img/musees/*.webp`
   ne sont alors ni rafraîchis ni supprimés).
 
-- **Restaurants, bureaux de poste, librairies, médiathèques** (horaires et site web,
-  OpenStreetMap) :
+- **Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques** (horaires et
+  site web, OpenStreetMap) :
 
   ```
   python build/commerces.py

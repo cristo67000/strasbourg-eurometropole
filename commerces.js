@@ -1,10 +1,11 @@
-/* Bulle d'info (horaires + site web) pour les restaurants, bureaux de poste,
-   librairies et médiathèques déjà affichés par le fond de carte (couche
-   « pois » du style Protomaps, posée par app.js). Ce module n'ajoute aucune
-   couche ni aucun marqueur : il rend cliquables des points déjà visibles,
-   en allant chercher le détail (OpenStreetMap, comme pour les musées — voir
-   musees.js) le plus proche du point cliqué. Interprétation des horaires
-   déléguée à Musees.etatOuverture, chargé avant ce script (index.html). */
+/* Bulle d'info (horaires + site web) pour les restaurants, cafés, bars,
+   bureaux de poste, librairies et médiathèques déjà affichés par le fond de
+   carte (couche « pois » du style Protomaps, posée par app.js). Ce module
+   n'ajoute aucune couche ni aucun marqueur : il rend cliquables des points
+   déjà visibles, en allant chercher le détail (OpenStreetMap, comme pour les
+   musées — voir musees.js) le plus proche du point cliqué. Interprétation
+   des horaires déléguée à Musees.etatOuverture/resume, chargé avant ce
+   script (index.html). */
 "use strict";
 
 var Commerces = (function () {
@@ -15,6 +16,8 @@ var Commerces = (function () {
 
   var LIBELLES = {
     restaurant: "Restaurant",
+    cafe: "Café",
+    bar: "Bar",
     post_office: "Bureau de poste",
     books: "Librairie",
     library: "Médiathèque"
@@ -76,10 +79,24 @@ var Commerces = (function () {
 
     if (lieu.horaires) {
       corps.appendChild(ligneEtatOuverture(lieu.horaires));
-      var brut = document.createElement("p");
-      brut.className = "horaires-bruts";
-      brut.textContent = lieu.horaires;
-      corps.appendChild(brut);
+      var lignes = Musees.resume(lieu.horaires);
+      if (lignes) {
+        var ul = document.createElement("ul");
+        ul.className = "horaires-resume";
+        lignes.forEach(function (texte) {
+          var li = document.createElement("li");
+          li.textContent = texte;
+          ul.appendChild(li);
+        });
+        corps.appendChild(ul);
+      } else {
+        // syntaxe hors du sous-ensemble reconnu (mois, vacances scolaires…) :
+        // l'horaire brut reste affiché plutôt que de ne rien montrer
+        var brut = document.createElement("p");
+        brut.className = "horaires-bruts";
+        brut.textContent = lieu.horaires;
+        corps.appendChild(brut);
+      }
     } else {
       var pasHoraire = document.createElement("p");
       pasHoraire.className = "note";

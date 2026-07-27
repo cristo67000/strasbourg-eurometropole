@@ -345,26 +345,34 @@ Chaque fiche liste les stations proches (issues de `reseau.js`, § 3-4) et propo
 Reste à faire : les expositions en cours (en ligne, agenda `data.strasbourg.eu`,
 phase 7).
 
-### 5.1 Commerces et services (restaurants, bureaux de poste, librairies,
-    médiathèques) — *réalisé*
+### 5.1 Commerces et services (restaurants, cafés, bars, bureaux de poste,
+    librairies, médiathèques) — *réalisé*
 
 Contrairement aux musées, ces catégories sont déjà affichées par le fond de carte
 (couche `pois` du style Protomaps, § 2) : leur position et leur nom sont donc gratuits,
 mais **sans horaires ni site web** (le fond de carte ne porte que `name`/`kind`, vérifié
 par introspection avant d'écrire une ligne de code). Plutôt que dupliquer une couche de
 marqueurs, `commerces.js` **rend cliquables les points déjà visibles** : au clic sur la
-couche `pois` filtrée à ces 4 genres, il cherche le lieu le plus proche (< 40 m) dans
+couche `pois` filtrée à ces 6 genres, il cherche le lieu le plus proche (< 40 m) dans
 un jeu de données dédié (`build/commerces.py`, requête Overpass ciblée sur
-`amenity=restaurant`, `amenity=post_office`, `shop=books`, `amenity=library` — seule
+`amenity=restaurant/cafe/bar/post_office`, `shop=books`, `amenity=library` — seule
 source ouverte à porter `opening_hours`/`website` pour ces catégories, même choix que
 pour les musées § 5) et ouvre la fiche habituelle avec l'état d'ouverture
 (`Musees.etatOuverture`, réutilisé tel quel plutôt que dupliqué) et le lien vers le
 site s'il existe.
 
-Résultat : **1 250 lieux** (1 091 restaurants, 75 bureaux de poste, 38 librairies,
-46 médiathèques), 715 avec horaires, 565 avec site web, 211 Ko. Si le rapprochement
-échoue (lieu disparu du relevé le plus récent, ou absent du fond de carte à moins de
-40 m), la fiche l'indique honnêtement plutôt que de rester muette.
+**Horaires résumés en français** (`Musees.resume`, ajouté à la même fonction de
+décodage `opening_hours` que `etatOuverture` — un seul parseur, deux sorties) : plutôt
+que le seul texte brut OSM, la fiche affiche une ligne par plage, ex. « Du mardi au
+samedi : de 14h à 20h » pour `Tu-Sa 14:00-20:00`. Repli sur l'horaire brut si la
+syntaxe dépasse le sous-ensemble reconnu (mois, vacances scolaires `SH`, commentaire
+entre guillemets) — même principe que partout ailleurs dans le projet : ne rien
+reformuler qu'on ne sait pas interpréter correctement.
+
+Résultat : **1 599 lieux** (1 091 restaurants, 180 cafés, 169 bars, 75 bureaux de
+poste, 38 librairies, 46 médiathèques), 920 avec horaires, 676 avec site web, 262 Ko.
+Si le rapprochement échoue (lieu disparu du relevé le plus récent, ou absent du fond
+de carte à moins de 40 m), la fiche l'indique honnêtement plutôt que de rester muette.
 
 Limite assumée, propre au fond de carte : Protomaps applique sa propre détection de
 collision aux étiquettes de la couche `pois` (des milliers de points par écran à
