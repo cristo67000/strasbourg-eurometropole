@@ -77,6 +77,13 @@ var Commerces = (function () {
   function ouvrirFiche(lieu) {
     var corps = Transports.ouvrirFiche(lieu.nom, LIBELLES[lieu.categorie] || "");
 
+    if (lieu.description) {
+      var desc = document.createElement("p");
+      desc.className = "description-lieu";
+      desc.textContent = lieu.description;
+      corps.appendChild(desc);
+    }
+
     if (lieu.horaires) {
       corps.appendChild(ligneEtatOuverture(lieu.horaires));
       var lignes = Musees.resume(lieu.horaires);

@@ -385,10 +385,50 @@ l'analyseur). Testé sur les 920 lieux du jeu de données : 840 (91 %) obtiennen
 résumé, 0 sortie mal formée, le reste (dates d'exception, horaires ouverts, semaines)
 replie correctement sur le brut.
 
-Résultat : **1 599 lieux** (1 091 restaurants, 180 cafés, 169 bars, 75 bureaux de
-poste, 38 librairies, 46 médiathèques), 920 avec horaires, 676 avec site web, 262 Ko.
-Si le rapprochement échoue (lieu disparu du relevé le plus récent, ou absent du fond
-de carte à moins de 40 m), la fiche l'indique honnêtement plutôt que de rester muette.
+Résultat : **1 598 lieux** (1 091 restaurants, 180 cafés, 169 bars, 75 bureaux de
+poste, 38 librairies, 46 médiathèques), 921 avec horaires, 676 avec site web,
+856 avec description, 308 Ko. Si le rapprochement échoue (lieu disparu du relevé le
+plus récent, ou absent du fond de carte à moins de 40 m), la fiche l'indique
+honnêtement plutôt que de rester muette.
+
+**Description courte** (`description(tags, cat)` dans `build/commerces.py`) : jamais
+inventée, tirée du tag OSM `description` s'il existe, sinon de `cuisine` traduit en
+français pour les restaurants/cafés/bars (dictionnaire d'une quarantaine de valeurs
+courantes, ex. `kebab` → « Cuisine : kebab » ; une valeur absente du dictionnaire
+s'affiche telle quelle plutôt que de disparaître), sinon de `operator` pour les
+bureaux de poste/médiathèques (« La Poste », « Eurométropole de Strasbourg »…).
+Beaucoup de lieux n'ont aucun de ces trois tags : pas de description affichée plutôt
+qu'une phrase générique inventée.
+
+**Deux bugs réels trouvés en re-vérifiant sur de vraies fiches** (l'utilisateur a
+signalé « Le Cul-Terreux » affiché de 17h à *25h*) :
+
+1. OSM autorise une heure de fin au-delà de 24:00 pour dire « jusqu'au lendemain
+   matin » sans règle séparée (`17:00-25:00` = jusqu'à 1 h) — très répandu chez les
+   bars/restaurants de nuit, jamais rencontré chez les musées jusqu'ici. `texteHeure()`
+   affichait la valeur brute ; ramenée à la plage 0-23 (`% 24`).
+2. Plus grave : `etatOuverture()` ne recalculait jamais les horaires de la **veille**.
+   Un bar ouvert jusqu'à 1 h semblait « fermé, ouvre à 12h » entre minuit et sa vraie
+   fermeture, faute de reconsidérer la règle du jour précédent qui déborde sur
+   aujourd'hui. Corrigé en calculant aussi les intervalles d'hier et en vérifiant si
+   « maintenant + 24 h » y tombe. Le même calcul servait aussi, par erreur, à annoncer
+   « ouvert 24 h/24 » pour *toute* plage franchissant minuit (pas seulement une vraie
+   plage de 24 h) — corrigé en comparant la durée réelle de la plage, pas seulement son
+   heure de fin. Testé sur le jeu de données complet (921 lieux à horaires) : plus
+   aucun crash, comportement revérifié aux limites (23 h, 00h30, 01h30, jour sans
+   règle) sans régression sur les musées ni sur le vrai `24/7`.
+
+**Corrections manuelles ponctuelles** (`EXCLUS_MANUELLEMENT`/`CORRECTIFS_HORAIRES`
+dans `build/commerces.py`, appliquées après le fetch Overpass et documentées en
+commentaire — pas de modification silencieuse du jeu de données) : un doublon exact
+signalé par l'utilisateur (« Médiathèque Jeunesse Olympe de Gouges », à 5 m de
+« Médiathèque Olympe de Gouges », même lieu) écarté, et les horaires de cette
+dernière remplacés par ceux communiqués directement par l'utilisateur (plus fiables
+que la fiche OSM, incohérente entre les deux doublons). Limite non résolue,
+côté fond de carte uniquement (pas côté données) : Protomaps affiche toujours ses
+deux points de base indépendamment de `commerces.json` (tuiles préconstruites, hors
+de notre contrôle) — cliquer sur l'un ou l'autre ouvre néanmoins la même fiche
+correcte, vérifié dans les deux cas.
 
 Limite assumée, propre au fond de carte : Protomaps applique sa propre détection de
 collision aux étiquettes de la couche `pois` (des milliers de points par écran à

@@ -42,12 +42,74 @@ CATEGORIE_PAR_TAGS = [
     (("amenity", "library"), "library"),
 ]
 
+# Traduction des valeurs `cuisine` OSM les plus courantes à Strasbourg ; une
+# valeur absente du dictionnaire est affichée telle quelle (mieux qu'un
+# silence total, mais jamais inventée). Pas de tarif ni de menu — seulement
+# la nature de la cuisine, déjà publiée par l'établissement lui-même sur OSM.
+CUISINE_FR = {
+    "italian": "italienne", "pizza": "pizza", "kebab": "kebab",
+    "vietnamese": "vietnamienne", "chinese": "chinoise", "japanese": "japonaise",
+    "sushi": "sushis", "thai": "thaïlandaise", "indian": "indienne",
+    "french": "française", "burger": "burgers", "sandwich": "sandwichs",
+    "coffee_shop": "café", "ice_cream": "glaces", "bakery": "boulangerie",
+    "regional": "régionale", "international": "internationale", "asian": "asiatique",
+    "mexican": "mexicaine", "greek": "grecque", "turkish": "turque",
+    "lebanese": "libanaise", "seafood": "fruits de mer", "steak_house": "grillades",
+    "vegetarian": "végétarienne", "vegan": "vegan", "fine_dining": "gastronomique",
+    "tapas": "tapas", "bistro": "bistrot", "crepe": "crêpes", "alsatian": "alsacienne",
+    "german": "allemande", "spanish": "espagnole", "portuguese": "portugaise",
+    "korean": "coréenne", "american": "américaine", "brasserie": "brasserie",
+    "fish": "poisson", "noodle": "nouilles", "bubble_tea": "bubble tea",
+    "donut": "donuts", "chicken": "poulet", "wok": "wok",
+    "indonesian": "indonésienne", "african": "africaine", "moroccan": "marocaine",
+    "tunisian": "tunisienne", "middle_eastern": "moyen-orientale",
+}
+
+# Doublons ou données OSM datées, repérés à l'usage et corrigés à la main
+# plutôt que dans le jeu de données lui-même : documentés ici pour rester
+# traçables et ne pas être écrasés à la prochaine régénération.
+EXCLUS_MANUELLEMENT = {
+    # même lieu que « Médiathèque Olympe de Gouges (Centre ville) », à 5 m
+    "Médiathèque Jeunesse Olympe de Gouges (Centre ville)",
+}
+CORRECTIFS_HORAIRES = {
+    # horaires réels communiqués par l'utilisateur (2026-07-28) ; ceux d'OSM
+    # étaient inconsistants entre les deux fiches en doublon ci-dessus
+    "Médiathèque Olympe de Gouges (Centre ville)":
+        "Jan-Jun,Sep-Dec Tu-Sa 10:00-19:00; Jul,Aug Tu-Fr 13:00-18:00; "
+        "Jul,Aug Sa 10:00-12:00,14:00-18:00; Mo off; PH off",
+}
+
 
 def categorie(tags):
     for (cle, valeur), nom in CATEGORIE_PAR_TAGS:
         if tags.get(cle) == valeur:
             return nom
     return None
+
+
+def description(tags, cat):
+    """Quelques mots quand OSM en fournit — jamais de texte inventé."""
+    brut = (tags.get("description") or "").strip()
+    if brut:
+        return brut[:160]
+    cuisine = (tags.get("cuisine") or "").strip()
+    if cuisine:
+        mots = [CUISINE_FR.get(c.strip(), c.strip().replace("_", " "))
+                for c in cuisine.split(";") if c.strip()]
+        if mots:
+            return "Cuisine : " + ", ".join(mots)
+    if cat in ("post_office", "library"):
+        operateur = (tags.get("operator") or "").strip()
+        # sigle administratif hérité (Communauté Urbaine de Strasbourg,
+        # renommée Eurométropole de Strasbourg en 2015) : d'autres fiches du
+        # même réseau portent déjà le nom actuel, gardé cohérent ici plutôt
+        # que d'afficher un sigle qui ne veut plus rien dire pour personne
+        if operateur == "CUS":
+            operateur = "Eurométropole de Strasbourg"
+        if operateur:
+            return operateur
+    return ""
 
 
 def lire_osm():
@@ -74,19 +136,37 @@ def lire_osm():
             "horaires": (t.get("opening_hours") or "").strip(),
             "site": (t.get("website") or t.get("contact:website") or "").strip(),
             "telephone": (t.get("phone") or t.get("contact:phone") or "").strip(),
+            "description": description(t, cat),
         })
     print(f"  {len(lieux)} lieux OSM, dont "
           f"{sum(1 for l in lieux if l['horaires'])} avec horaires, "
-          f"{sum(1 for l in lieux if l['site'])} avec site web")
+          f"{sum(1 for l in lieux if l['site'])} avec site web, "
+          f"{sum(1 for l in lieux if l['description'])} avec description")
     for (_, _), cat in CATEGORIE_PAR_TAGS:
         n = sum(1 for l in lieux if l["categorie"] == cat)
         print(f"    {cat} : {n}")
     return lieux
 
 
+def appliquer_correctifs(lieux):
+    avant = len(lieux)
+    lieux = [l for l in lieux if l["nom"] not in EXCLUS_MANUELLEMENT]
+    if avant != len(lieux):
+        print(f"  {avant - len(lieux)} doublon(s) manuel(s) écarté(s)")
+    n = 0
+    for l in lieux:
+        if l["nom"] in CORRECTIFS_HORAIRES:
+            l["horaires"] = CORRECTIFS_HORAIRES[l["nom"]]
+            n += 1
+    if n:
+        print(f"  {n} horaire(s) corrigé(s) manuellement")
+    return lieux
+
+
 def main():
     print("OpenStreetMap :")
     lieux = lire_osm()
+    lieux = appliquer_correctifs(lieux)
     lieux.sort(key=lambda l: (l["categorie"], l["nom"]))
 
     sortie = {

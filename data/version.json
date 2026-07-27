@@ -1,5 +1,5 @@
 {
-  "build": "2026-07-27-3",
+  "build": "2026-07-28-1",
   "tuiles": {
     "source": "https://build.protomaps.com/20260724.pmtiles",
     "donnees_osm": "2026-07-24",
@@ -54,17 +54,19 @@
     "remarque": "aucun tarif publié : le jeu officiel n'en fournit aucun, on n'invente rien"
   },
   "commerces": {
-    "source": "OpenStreetMap (position, horaires, site web)",
+    "source": "OpenStreetMap (position, horaires, site web, description)",
     "releve": "2026-07-27",
-    "lieux": 1599,
+    "lieux": 1598,
     "restaurant": 1091,
     "cafe": 180,
     "bar": 169,
     "post_office": 75,
     "books": 38,
     "library": 46,
-    "avec_horaires": 920,
+    "avec_horaires": 921,
     "avec_site": 676,
+    "avec_description": 856,
+    "correctifs_manuels": "1 doublon écarté et 1 horaire corrigé (Médiathèque Olympe de Gouges), voir build/commerces.py",
     "remarque": "clic sur les points déjà affichés par le fond de carte (couche pois) ; aucun tarif ni menu publié ; horaires résumés en français (Musees.resume)"
   }
 }

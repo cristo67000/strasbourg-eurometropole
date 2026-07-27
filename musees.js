@@ -260,10 +260,15 @@ var Musees = (function () {
     return texte.charAt(0).toUpperCase() + texte.slice(1);
   }
 
+  /* OSM autorise (et beaucoup de bars/restaurants de nuit l'utilisent) une
+     heure de fin au-delà de 24:00 pour dire « le lendemain matin » sans
+     règle séparée (ex. « 17:00-25:00 » = ouvert jusqu'à 1 h). Ramené à la
+     plage 0-23 pour l'affichage — « de 17h à 1h » se lit sans ambiguïté,
+     contrairement à « de 17h à 25h ». */
   function texteHeure(hhmm) {
     var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
     if (!m) return null;
-    var h = parseInt(m[1], 10), mn = m[2];
+    var h = parseInt(m[1], 10) % 24, mn = m[2];
     return h + "h" + (mn === "00" ? "" : mn);
   }
 
@@ -303,9 +308,33 @@ var Musees = (function () {
     if (plages === null) return { etat: "inconnu", texte: "" };
     var minute = maintenant.getHours() * 60 + maintenant.getMinutes();
 
+    // une plage codée la veille (ex. « 17:00-25:00 » un lundi, donc jusqu'à
+    // 1 h le mardi) déborde sur aujourd'hui avant l'aube : sans ce contrôle,
+    // un bar ouvert jusqu'à 1 h semblerait fermé entre minuit et sa vraie
+    // fermeture, faute d'être recalculé depuis la règle de la veille.
+    var hier = new Date(maintenant.getTime() - 86400000);
+    var plagesHier = intervalles(horaires, hier);
+    if (plagesHier) {
+      for (var h = 0; h < plagesHier.length; h++) {
+        if (plagesHier[h][1] > 1440 && minute < plagesHier[h][1] - 1440) {
+          var dureeHier = plagesHier[h][1] - plagesHier[h][0];
+          return {
+            etat: "ouvert",
+            texte: dureeHier >= 1440 ? "ouvert 24 h/24" : "ferme à " + heure(plagesHier[h][1])
+          };
+        }
+      }
+    }
+
     for (var i = 0; i < plages.length; i++) {
       if (minute >= plages[i][0] && minute < plages[i][1]) {
-        var texte = plages[i][1] >= 1440 ? "ouvert 24 h/24"
+        // une plage qui franchit minuit (bar ouvert jusqu'à 1 h, codé
+        // 17:00-25:00) n'est « ouvert 24 h/24 » que si elle couvre bien la
+        // journée entière (durée ≥ 1440) — sinon c'est juste une fermeture
+        // après minuit, à annoncer avec sa vraie heure (`heure()` ramène
+        // déjà 1500 min à 01:00)
+        var dureeVraie = plages[i][1] - plages[i][0];
+        var texte = dureeVraie >= 1440 ? "ouvert 24 h/24"
           : "ferme à " + heure(plages[i][1]);
         return { etat: "ouvert", texte: texte };
       }

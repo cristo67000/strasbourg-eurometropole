@@ -71,9 +71,10 @@ population réelle, ex. Cronenbourg/Schiltigheim) ainsi que les snacks/fast-food
 épiceries/supérettes et instituts de beauté ne sont plus affichés.
 
 **Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques** : un clic sur
-ces points déjà affichés par le fond de carte ouvre une bulle avec l'état d'ouverture,
-un résumé lisible des horaires (« Du mardi au samedi : de 14h à 20h ») et le site web,
-quand OpenStreetMap les renseigne — voir
+ces points déjà affichés par le fond de carte ouvre une bulle avec une courte
+description (cuisine, exploitant…), l'état d'ouverture, un résumé lisible des horaires
+(« Du mardi au samedi : de 14h à 20h », y compris les horaires saisonniers et les
+fermetures après minuit) et le site web, quand OpenStreetMap les renseigne — voir
 [ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-cafés-bars-bureaux-de-poste-librairies-médiathèques--réalisé).
 
 ## Lancer en local
