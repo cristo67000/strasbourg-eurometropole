@@ -70,12 +70,15 @@ et l'arrêt suivant — voir [ARCHITECTURE.md § 3.6](ARCHITECTURE.md#36-icônes
 population réelle, ex. Cronenbourg/Schiltigheim) ainsi que les snacks/fast-food,
 épiceries/supérettes et instituts de beauté ne sont plus affichés.
 
-**Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques** : un clic sur
-ces points déjà affichés par le fond de carte ouvre une bulle avec une courte
-description (cuisine, exploitant…), l'état d'ouverture, un résumé lisible des horaires
-(« Du mardi au samedi : de 14h à 20h », y compris les horaires saisonniers et les
-fermetures après minuit) et le site web, quand OpenStreetMap les renseigne — voir
-[ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-cafés-bars-bureaux-de-poste-librairies-médiathèques--réalisé).
+**Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques, pharmacies,
+épiceries bio** : un clic ouvre une bulle avec une courte description (cuisine,
+exploitant…), l'état d'ouverture, un résumé lisible des horaires (« Du mardi au
+samedi : de 14h à 20h », y compris les horaires saisonniers et les fermetures après
+minuit) et le site web, quand OpenStreetMap les renseigne. Pharmacies et épiceries bio
+(`organic=only`, jamais les grandes surfaces qui en vendent seulement — Biocoop, La
+Maison Vitale…) ont leur propre pictogramme sur la carte ; les six autres catégories
+sont déjà affichées par le fond de carte — voir
+[ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-cafés-bars-bureaux-de-poste-librairies-médiathèques-pharmacies-épiceries-bio--réalisé).
 
 ## Lancer en local
 

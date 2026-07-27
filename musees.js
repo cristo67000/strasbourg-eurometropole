@@ -81,11 +81,12 @@ var Musees = (function () {
      résumé faux. Les plages de mois (« Jul-Aug 13:00-18:00 », très
      courantes sur les équipements municipaux — horaires d'été distincts —
      sont en revanche reconnues : assez fréquentes pour valoir la peine. */
-  function analyserRegles(horaires) {
+  function analyserRegles(horaires, refDate) {
     if (!horaires) return null;
     var texte = horaires.trim();
     if (/["]/.test(texte)) return null;               // commentaire libre
     if (/^24\/7$/.test(texte)) return [{ specMois: "", specJours: "", specHeures: "24/7" }];
+    var anneeCourante = (refDate || new Date()).getFullYear();
 
     var motifMois = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
     var regexMois = new RegExp(
@@ -120,6 +121,21 @@ var Musees = (function () {
     for (var r = 0; r < morceaux.length; r++) {
       var regle = morceaux[r].trim();
       if (!regle) continue;
+
+      // exception à date absolue (« 2024 Jul 19 off », GTFS-like one-off) :
+      // fréquente sur les fiches OSM non nettoyées après coup. Sans date
+      // précise à comparer ici (specHeures pourrait suivre plusieurs
+      // dates à la fois), on se contente d'un test sûr — si toutes les
+      // années citées sont déjà passées, l'exception ne peut plus jamais
+      // s'appliquer et peut être ignorée sans risque ; sinon (année en
+      // cours ou future), on renonce comme avant plutôt que de deviner.
+      if (/^\d{4}\b/.test(regle)) {
+        var annees = (regle.match(/\d{4}/g) || []).map(Number);
+        if (annees.length && annees.every(function (a) { return a < anneeCourante; })) {
+          continue;
+        }
+        return null;
+      }
 
       var specMois = "";
       var reste = regle;
@@ -166,7 +182,7 @@ var Musees = (function () {
   /* Intervalles d'ouverture pour une date, ou null si la syntaxe dépasse le
      sous-ensemble reconnu (on préfère ne rien affirmer). */
   function intervalles(horaires, date) {
-    var regles = analyserRegles(horaires);
+    var regles = analyserRegles(horaires, date);
     if (regles === null) return null;
     if (regles.length === 1 && regles[0].specHeures === "24/7") return [[0, 1440]];
 

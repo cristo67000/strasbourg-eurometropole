@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Restaurants, cafés, bars, bureaux de poste, librairies et médiathèques ->
-data/commerces.json.
+"""Restaurants, cafés, bars, bureaux de poste, librairies, médiathèques,
+pharmacies et épiceries bio -> data/commerces.json.
 
 Seule source : OpenStreetMap (via Overpass), qui porte `opening_hours` et
 `website`/`contact:website` pour ces catégories — aucune autre source ouverte
@@ -29,6 +29,9 @@ REQUETE = """
   nwr[amenity=post_office](%f,%f,%f,%f);
   nwr[shop=books](%f,%f,%f,%f);
   nwr[amenity=library](%f,%f,%f,%f);
+  nwr[amenity=pharmacy](%f,%f,%f,%f);
+  nwr[shop=supermarket][organic=only](%f,%f,%f,%f);
+  nwr[shop=convenience][organic=only](%f,%f,%f,%f);
 );
 out tags center;
 """
@@ -40,6 +43,7 @@ CATEGORIE_PAR_TAGS = [
     (("amenity", "post_office"), "post_office"),
     (("shop", "books"), "books"),
     (("amenity", "library"), "library"),
+    (("amenity", "pharmacy"), "pharmacy"),
 ]
 
 # Traduction des valeurs `cuisine` OSM les plus courantes à Strasbourg ; une
@@ -82,6 +86,12 @@ CORRECTIFS_HORAIRES = {
 
 
 def categorie(tags):
+    # « épicerie bio » = magasin qui ne vend QUE du bio (`organic=only`),
+    # jamais un supermarché classique qui en propose aussi (`organic=yes` —
+    # Lidl, Auchan, Grand Frais… en sont tous une fausse piste écartée en
+    # vérifiant sur de vraies données avant d'écrire la requête définitive).
+    if tags.get("organic") == "only" and tags.get("shop") in ("supermarket", "convenience"):
+        return "organic"
     for (cle, valeur), nom in CATEGORIE_PAR_TAGS:
         if tags.get(cle) == valeur:
             return nom
@@ -109,12 +119,16 @@ def description(tags, cat):
             operateur = "Eurométropole de Strasbourg"
         if operateur:
             return operateur
+    if cat == "organic":
+        marque = (tags.get("brand") or "").strip()
+        if marque and marque.lower() not in tags.get("name", "").lower():
+            return "Réseau : " + marque
     return ""
 
 
 def lire_osm():
     bbox = overpass.BBOX
-    requete = REQUETE % (bbox * 6)
+    requete = REQUETE % (bbox * 9)
     data = overpass.interroger(requete)
     lieux = []
     for e in data["elements"]:
@@ -142,7 +156,11 @@ def lire_osm():
           f"{sum(1 for l in lieux if l['horaires'])} avec horaires, "
           f"{sum(1 for l in lieux if l['site'])} avec site web, "
           f"{sum(1 for l in lieux if l['description'])} avec description")
-    for (_, _), cat in CATEGORIE_PAR_TAGS:
+    categories_uniques = []
+    for l in lieux:
+        if l["categorie"] not in categories_uniques:
+            categories_uniques.append(l["categorie"])
+    for cat in categories_uniques:
         n = sum(1 for l in lieux if l["categorie"] == cat)
         print(f"    {cat} : {n}")
     return lieux

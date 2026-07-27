@@ -1,5 +1,5 @@
 {
-  "build": "2026-07-28-1",
+  "build": "2026-07-28-2",
   "tuiles": {
     "source": "https://build.protomaps.com/20260724.pmtiles",
     "donnees_osm": "2026-07-24",
@@ -55,18 +55,20 @@
   },
   "commerces": {
     "source": "OpenStreetMap (position, horaires, site web, description)",
-    "releve": "2026-07-27",
-    "lieux": 1598,
-    "restaurant": 1091,
-    "cafe": 180,
-    "bar": 169,
+    "releve": "2026-07-28",
+    "lieux": 1770,
+    "restaurant": 1094,
+    "cafe": 183,
+    "bar": 155,
     "post_office": 75,
     "books": 38,
-    "library": 46,
-    "avec_horaires": 921,
-    "avec_site": 676,
-    "avec_description": 856,
+    "library": 45,
+    "pharmacy": 155,
+    "organic": 25,
+    "avec_horaires": 1030,
+    "avec_site": 721,
+    "avec_description": 860,
     "correctifs_manuels": "1 doublon écarté et 1 horaire corrigé (Médiathèque Olympe de Gouges), voir build/commerces.py",
-    "remarque": "clic sur les points déjà affichés par le fond de carte (couche pois) ; aucun tarif ni menu publié ; horaires résumés en français (Musees.resume)"
+    "remarque": "clic sur les points affichés par le fond de carte (couche pois) pour les 6 premières catégories ; pharmacies et épiceries bio sur une couche de marqueurs dédiée (absentes du fond de carte) ; épicerie bio = organic=only sur un shop=supermarket/convenience, jamais organic=yes (grandes surfaces classiques) ; horaires résumés en français (Musees.resume), exceptions à date absolue expirées ignorées automatiquement"
   }
 }

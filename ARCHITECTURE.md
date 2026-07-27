@@ -346,20 +346,40 @@ Reste à faire : les expositions en cours (en ligne, agenda `data.strasbourg.eu`
 phase 7).
 
 ### 5.1 Commerces et services (restaurants, cafés, bars, bureaux de poste,
-    librairies, médiathèques) — *réalisé*
+    librairies, médiathèques, pharmacies, épiceries bio) — *réalisé*
 
-Contrairement aux musées, ces catégories sont déjà affichées par le fond de carte
-(couche `pois` du style Protomaps, § 2) : leur position et leur nom sont donc gratuits,
-mais **sans horaires ni site web** (le fond de carte ne porte que `name`/`kind`, vérifié
-par introspection avant d'écrire une ligne de code). Plutôt que dupliquer une couche de
-marqueurs, `commerces.js` **rend cliquables les points déjà visibles** : au clic sur la
-couche `pois` filtrée à ces 6 genres, il cherche le lieu le plus proche (< 40 m) dans
-un jeu de données dédié (`build/commerces.py`, requête Overpass ciblée sur
-`amenity=restaurant/cafe/bar/post_office`, `shop=books`, `amenity=library` — seule
-source ouverte à porter `opening_hours`/`website` pour ces catégories, même choix que
-pour les musées § 5) et ouvre la fiche habituelle avec l'état d'ouverture
-(`Musees.etatOuverture`, réutilisé tel quel plutôt que dupliqué) et le lien vers le
-site s'il existe.
+Deux mécanismes cohabitent, selon que la catégorie est déjà affichée par le fond de
+carte ou non — vérifié par introspection avant de choisir, pour chaque nouvelle
+catégorie, plutôt que de supposer :
+
+- **Restaurants/cafés/bars/postes/librairies/médiathèques** : déjà des points visibles
+  de la couche `pois` du style Protomaps (§ 2), mais **sans horaires ni site web** (le
+  fond de carte ne porte que `name`/`kind`). `commerces.js` **rend cliquables les
+  points déjà visibles** : au clic sur `pois` filtrée à ces 6 genres, il cherche le
+  lieu le plus proche (< 40 m) dans un jeu de données dédié (`build/commerces.py`,
+  Overpass) et ouvre la fiche.
+- **Pharmacies/épiceries bio** : *absentes* du fond de carte — vérifié avant d'écrire
+  la couche : `pharmacy` existe comme genre dans les tuiles mais sans icône dans le
+  jeu de sprites (`assets/sprites/v4/*.json` ne le liste pas), et « organic » n'existe
+  purement et simplement pas comme genre Protomaps. `commerces.js` leur ajoute donc sa
+  propre couche de marqueurs (source+couches `commerces-dedies-*`), icônes dessinées au
+  canvas comme les pictogrammes tram/bus (§ 3.6) — pastille verte 💊 pour les
+  pharmacies, brune 🌱 pour les épiceries bio.
+
+Dans les deux cas, même détail (Overpass, `build/commerces.py` — seule source ouverte
+à porter `opening_hours`/`website` pour ces catégories, même choix que pour les
+musées § 5) et même fiche, avec l'état d'ouverture (`Musees.etatOuverture`, réutilisé
+tel quel plutôt que dupliqué) et le lien vers le site s'il existe.
+
+**Épicerie bio — piège de tagging repéré en vérifiant sur de vraies données avant
+d'écrire la requête définitive** : `shop=organic`/`shop=health_food` (l'hypothèse de
+départ) ne renvoyaient qu'un seul lieu sur toute l'agglomération. Les vraies enseignes
+bio (Biocoop, La Maison Vitale, Naturalia, Satoriz…) sont taguées `shop=supermarket`
+ou `shop=convenience` **+ `organic=only`** — un tag composé, pas une valeur de `shop`
+dédiée. Piège inverse à éviter : `organic=yes` (« vend aussi du bio », porté par Lidl,
+Aldi, Auchan, Grand Frais, Kaufland…) n'est **pas** une épicerie bio — seul
+`organic=only` l'est. Résultat : 25 lieux, incluant les deux enseignes citées par
+l'utilisateur comme exemples.
 
 **Horaires résumés en français** (`Musees.resume`, ajouté à la même fonction de
 décodage `opening_hours` que `etatOuverture` — un seul parseur, deux sorties) : plutôt
@@ -385,11 +405,13 @@ l'analyseur). Testé sur les 920 lieux du jeu de données : 840 (91 %) obtiennen
 résumé, 0 sortie mal formée, le reste (dates d'exception, horaires ouverts, semaines)
 replie correctement sur le brut.
 
-Résultat : **1 598 lieux** (1 091 restaurants, 180 cafés, 169 bars, 75 bureaux de
-poste, 38 librairies, 46 médiathèques), 921 avec horaires, 676 avec site web,
-856 avec description, 308 Ko. Si le rapprochement échoue (lieu disparu du relevé le
-plus récent, ou absent du fond de carte à moins de 40 m), la fiche l'indique
-honnêtement plutôt que de rester muette.
+Résultat : **1 770 lieux** (1 094 restaurants, 183 cafés, 155 bars, 75 bureaux de
+poste, 38 librairies, 45 médiathèques, 155 pharmacies, 25 épiceries bio), 1 030 avec
+horaires, 721 avec site web, 860 avec description, 340 Ko. Si le rapprochement échoue
+(lieu disparu du relevé le plus récent, ou absent du fond de carte à moins de 40 m —
+seulement pour les 6 premières catégories, sans objet pour pharmacies/épiceries bio
+qui ont leurs propres marqueurs), la fiche l'indique honnêtement plutôt que de rester
+muette.
 
 **Description courte** (`description(tags, cat)` dans `build/commerces.py`) : jamais
 inventée, tirée du tag OSM `description` s'il existe, sinon de `cuisine` traduit en
@@ -400,8 +422,9 @@ bureaux de poste/médiathèques (« La Poste », « Eurométropole de Strasbourg
 Beaucoup de lieux n'ont aucun de ces trois tags : pas de description affichée plutôt
 qu'une phrase générique inventée.
 
-**Deux bugs réels trouvés en re-vérifiant sur de vraies fiches** (l'utilisateur a
-signalé « Le Cul-Terreux » affiché de 17h à *25h*) :
+**Trois bugs réels trouvés en re-vérifiant sur de vraies fiches** (l'utilisateur a
+signalé « Le Cul-Terreux » affiché de 17h à *25h*, puis demandé de revérifier
+l'horaire d'un bureau de poste) :
 
 1. OSM autorise une heure de fin au-delà de 24:00 pour dire « jusqu'au lendemain
    matin » sans règle séparée (`17:00-25:00` = jusqu'à 1 h) — très répandu chez les
@@ -417,6 +440,16 @@ signalé « Le Cul-Terreux » affiché de 17h à *25h*) :
    heure de fin. Testé sur le jeu de données complet (921 lieux à horaires) : plus
    aucun crash, comportement revérifié aux limites (23 h, 00h30, 01h30, jour sans
    règle) sans régression sur les musées ni sur le vrai `24/7`.
+3. Troisième trouvé en vérifiant l'horaire du bureau de poste « Strasbourg
+   22 Novembre » (à la demande) : sa fiche OSM traîne des exceptions à date absolue
+   de 2024 (`2024 Jul 19,2024 Jul 26 ...; 2024 May 20 off`), jamais nettoyées après
+   coup — l'analyseur renonçait pour tout le champ dès qu'il en voyait une, même
+   pour une exception qui ne peut plus jamais se produire. `analyserRegles()` ignore
+   désormais une exception à date absolue si **toutes** les années qu'elle cite sont
+   déjà passées (comparaison uniquement sur l'année, volontairement grossière mais
+   sûre) ; une exception de l'année en cours ou future fait toujours renoncer comme
+   avant, par prudence. Passé de 840/920 à 893/921 lieux résumés sur ce seul
+   correctif ; 1003/1030 (97 %) au final avec pharmacies et épiceries bio incluses.
 
 **Corrections manuelles ponctuelles** (`EXCLUS_MANUELLEMENT`/`CORRECTIFS_HORAIRES`
 dans `build/commerces.py`, appliquées après le fetch Overpass et documentées en
@@ -430,13 +463,14 @@ deux points de base indépendamment de `commerces.json` (tuiles préconstruites,
 de notre contrôle) — cliquer sur l'un ou l'autre ouvre néanmoins la même fiche
 correcte, vérifié dans les deux cas.
 
-Limite assumée, propre au fond de carte : Protomaps applique sa propre détection de
-collision aux étiquettes de la couche `pois` (des milliers de points par écran à
-fort zoom — arbres, bancs, parkings à vélo…) ; un bureau de poste ou une librairie
-peut donc rester invisible à un endroit précis même si la donnée existe (vérifié :
-`querySourceFeatures` la montre toujours présente, seul le rendu la masque). Rien à
-corriger côté app — modifier les priorités de collision reviendrait à retoucher le
-style de base pour un effet secondaire mineur.
+Limite assumée, propre au fond de carte, pour les 6 catégories qui s'appuient dessus
+(pas pour les pharmacies/épiceries bio, sur leur propre couche) : Protomaps applique
+sa propre détection de collision aux étiquettes de la couche `pois` (des milliers de
+points par écran à fort zoom — arbres, bancs, parkings à vélo…) ; un bureau de poste
+ou une librairie peut donc rester invisible à un endroit précis même si la donnée
+existe (vérifié : `querySourceFeatures` la montre toujours présente, seul le rendu la
+masque). Rien à corriger côté app — modifier les priorités de collision reviendrait à
+retoucher le style de base pour un effet secondaire mineur.
 
 ---
 
