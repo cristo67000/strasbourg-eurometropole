@@ -317,6 +317,9 @@ var Reseau = (function () {
     charger: charger,
     chargerReseauSeul: chargerReseauSeul,
     pret: function () { return !!courses; },
+    // distinct de `pret()` (qui suppose courses.json, dix fois plus lourd) :
+    // vrai dès que reseau.json seul a fini de charger.
+    reseauPret: function () { return !!reseau; },
     lignes: function () { return reseau.lignes; },
     stations: function () { return reseau.stations; },
     destinations: function () { return reseau.destinations; },

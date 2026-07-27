@@ -60,6 +60,12 @@ expositions en cours, faute de jeu de données ouvert trouvé pour l'agenda cult
 814 fichiers précachés, carte et fiches fonctionnelles. Le Worker Cloudflare de la
 phase 7 reste à déployer séparément quand les comptes/tokens seront disponibles.
 
+**Icônes tram/bus** : les arrêts affichent désormais un pictogramme dédié (tram, bus,
+ou pilule bicolore pour les arrêts desservis par les deux), visible à partir du zoom 13.
+Un clic ouvre la fiche habituelle, enrichie d'une section « Lignes et directions » :
+pour chaque ligne, ses deux sens (jusqu'à 4 pour une ligne à branches) avec le terminus
+et l'arrêt suivant — voir [ARCHITECTURE.md § 3.6](ARCHITECTURE.md#36-icônes-trambus-et-fiche--lignes-et-directions--réalisé).
+
 ## Lancer en local
 
 Le serveur standard de Python ne gère pas les requêtes HTTP *Range* dont

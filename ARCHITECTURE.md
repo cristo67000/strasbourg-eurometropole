@@ -224,6 +224,51 @@ Résultat : 57 polylignes, 5 455 points, **110 Ko** pour les 48 lignes. Les trac
 suivent les voies réelles, ce qui est très supérieur à des segments droits entre arrêts.
 Seules les 2 lignes de substitution temporaires n'ont pas de tracé (absentes d'OSM).
 
+### 3.6 Icônes tram/bus et fiche « lignes et directions » — *réalisé*
+
+Distinction visuelle immédiate tram/bus, demandée après coup. Toutes les données
+nécessaires étaient déjà présentes (aucune API supplémentaire) :
+
+- **type de ligne** : `ligne.type` (GTFS `route_type`, 0 = tram, 3 = bus) — déjà utilisé
+  par `modeStation()` pour colorer les pastilles, étendu pour détecter le cas
+  **« mixte »** (arrêt desservi par au moins une ligne de chaque, ex. Aristide Briand,
+  Jean Jaurès) resté non distingué jusqu'ici (un arrêt tram+bus s'affichait comme tram).
+- **directions et arrêt suivant** : `ligne.parcours` (déjà utilisé par la fiche ligne)
+  donne, par ligne, la liste ordonnée des arrêts pour chaque tracé canonique — chercher
+  la position de la station dans chaque tracé donne directement le terminus (premier
+  élément du couple) et l'arrêt suivant (position + 1), sans nouveau calcul ni fichier.
+
+Icônes dessinées **au canvas à l'exécution** (pastille + emoji 🚊/🚌), pas d'asset à
+précacher : cohérent avec le principe zéro-build du projet. L'icône « mixte » est une
+pilule à deux moitiés (rouge tram, bleu bus) plutôt qu'un pictogramme composite, pour
+qu'un simple coup d'œil montre les deux modes sans avoir à lire une légende. Posées en
+couche `symbol` séparée des pastilles `circle` existantes (gardées à tous les zooms
+pour rester visibles dézoomé), visible à partir du zoom 13 seulement.
+
+Deux ajustements faits en cours de route :
+
+1. **Directions montrées = tracés canoniques, pas toutes les variantes horaires.**
+   Une première version listait, par ligne, toutes les destinations réellement vues
+   dans les motifs horaires — jusqu'à 5 pour une ligne à renforts de pointe (ex. tram A
+   à Homme de Fer : Étoile Bourse / Graffenstaden / Parc des Sports Zénith). Bruyant et
+   incohérent avec le reste de l'app. Basculé sur `ligne.parcours`, qui donne les
+   2 sens attendus (jusqu'à 4 pour une ligne à branches) — la même donnée déjà affichée
+   par la fiche ligne. Limite héritée, non corrigée ici (hors périmètre) : pour
+   certaines lignes, `parcours` ne porte qu'un tracé complet et un ou plusieurs tracés
+   partiels pour l'autre sens (ex. ligne B vers Hoenheim Gare, 12 arrêts seulement) —
+   déjà le cas dans la fiche ligne avant cette phase, donc pas un écart introduit ici,
+   mais à reconsidérer si `build/reseau.py` est retouché un jour.
+2. **Bug latent corrigé en testant** : `Transports.ajouterCouches()` ne posait ses
+   couches qu'après un test `!Reseau.stations` cru garant que les données étaient
+   chargées — en réalité un test que l'*accesseur* existe, toujours vrai. Si
+   l'évènement `styledata` survient avant la fin du fetch de `reseau.json` (observé de
+   façon fiable dans l'environnement de test headless, possible en conditions réelles
+   sur réseau lent), `geojsonStations()` levait une exception après l'ajout de la seule
+   source `cts-traces`, et le garde-fou anti-doublon bloquait alors tout nouvel essai
+   pour le reste de la session — carte sans arrêts CTS, sans message d'erreur visible.
+   Corrigé avec un accesseur dédié `Reseau.reseauPret()` qui vérifie les données
+   elles-mêmes.
+
 ---
 
 ## 4. Trains SNCF — *réalisé (hors ligne)*

@@ -77,16 +77,26 @@ var Transports = (function () {
   }
 
   // ---------- couches cartographiques ----------
+  // « mixte » : arrêt desservi à la fois par une ligne de tram (GTFS type 0)
+  // et une ligne de bus (type 3) — cas fréquent aux grands pôles d'échange
+  // (Homme de Fer, Gare Centrale…), à distinguer visuellement des arrêts
+  // purement tram ou purement bus.
   function modeStation(station) {
     if (station[5] === "SNCF") return "gare";
     var lignes = Reseau.lignes();
-    return station[4].some(function (l) { return lignes[l].type === 0; })
-      ? "tram" : "bus";
+    var tram = false, bus = false;
+    station[4].forEach(function (l) {
+      if (lignes[l].type === 0) tram = true; else bus = true;
+    });
+    if (tram && bus) return "mixte";
+    return tram ? "tram" : "bus";
   }
+
+  var LIBELLES_MODE = { tram: "Tram", bus: "Bus", mixte: "Tram + Bus", gare: "Gare SNCF" };
 
   function geojsonStations() {
     var lignes = Reseau.lignes();
-    var rang = { gare: 0, tram: 1, bus: 2 };
+    var rang = { gare: 0, mixte: 1, tram: 2, bus: 3 };
     return {
       type: "FeatureCollection",
       features: Reseau.stations().map(function (s, idx) {
@@ -105,17 +115,107 @@ var Transports = (function () {
     };
   }
 
+  // ---------- icônes tram / bus / mixte ----------
+  // Dessinées au canvas (pas d'asset externe à charger ni à précacher) :
+  // pastille colorée + pictogramme emoji, lisible sans dépendre de la seule
+  // couleur (accessibilité daltonisme). L'icône « mixte » est une pilule à
+  // deux moitiés, une par mode, pour montrer clairement les deux à la fois.
+  var iconesPretes = false;
+
+  function canvasRond(couleur, glyphe) {
+    var t = 64;
+    var c = document.createElement("canvas");
+    c.width = t; c.height = t;
+    var ctx = c.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(t / 2, t / 2, t / 2 - 2, 0, Math.PI * 2);
+    ctx.fillStyle = couleur;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.font = "34px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(glyphe, t / 2, t / 2 + 2);
+    return ctx.getImageData(0, 0, t, t);
+  }
+
+  function canvasMixte(couleurTram, couleurBus, glypheTram, glypheBus) {
+    var l = 96, h = 64, r = h / 2;
+    var c = document.createElement("canvas");
+    c.width = l; c.height = h;
+    var ctx = c.getContext("2d");
+    function moitie(x0, x1, couleur) {
+      ctx.beginPath();
+      ctx.moveTo(x0, 2);
+      ctx.lineTo(x1, 2);
+      ctx.lineTo(x1, h - 2);
+      ctx.lineTo(x0, h - 2);
+      ctx.closePath();
+      ctx.fillStyle = couleur;
+      ctx.fill();
+    }
+    // corps arrondi aux deux bouts, coupé au milieu par les deux rectangles
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(r, 2);
+    ctx.arcTo(2, 2, 2, r, r);
+    ctx.arcTo(2, h - 2, r, h - 2, r);
+    ctx.lineTo(l - r, h - 2);
+    ctx.arcTo(l - 2, h - 2, l - 2, r, r);
+    ctx.arcTo(l - 2, 2, l - r, 2, r);
+    ctx.closePath();
+    ctx.clip();
+    moitie(0, l / 2, couleurTram);
+    moitie(l / 2, l, couleurBus);
+    ctx.restore();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(r, 2);
+    ctx.arcTo(2, 2, 2, r, r);
+    ctx.arcTo(2, h - 2, r, h - 2, r);
+    ctx.lineTo(l - r, h - 2);
+    ctx.arcTo(l - 2, h - 2, l - 2, r, r);
+    ctx.arcTo(l - 2, 2, l - r, 2, r);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.font = "28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(glypheTram, l / 4, h / 2 + 2);
+    ctx.fillText(glypheBus, l * 3 / 4, h / 2 + 2);
+    return ctx.getImageData(0, 0, l, h);
+  }
+
+  function ajouterIcones() {
+    if (carte.hasImage("cts-icone-tram")) return;
+    carte.addImage("cts-icone-tram", canvasRond("#c8102e", "🚊"), { pixelRatio: 2 });
+    carte.addImage("cts-icone-bus", canvasRond("#1a5fb4", "🚌"), { pixelRatio: 2 });
+    carte.addImage("cts-icone-mixte", canvasMixte("#c8102e", "#1a5fb4", "🚊", "🚌"), { pixelRatio: 2 });
+    iconesPretes = true;
+  }
+
   /* Idempotente : appelée dès que le réseau est chargé puis à chaque
      « styledata » — un changement de thème reconstruit le style et supprime
      les couches maison. On se fie à « styledata » et non à isStyleLoaded(),
      qui reste faux jusqu'au premier rendu (donc indéfiniment si l'onglet
      n'est pas affiché). */
   function ajouterCouches() {
-    if (!carte || !Reseau.stations || !stylePret) return;
+    // « styledata » peut survenir avant la fin du fetch de reseau.json (pas
+    // seulement à l'ouverture de l'app : aussi après chaque changement de
+    // thème, qui reconstruit tout le style) — reseauPret() vérifie les
+    // données elles-mêmes, pas seulement que l'accesseur existe (toujours
+    // vrai). Sans ce garde-fou : exception dans geojsonStations(), la source
+    // cts-traces reste seule ajoutée, et le guard ci-dessous bloque alors
+    // tout nouvel essai pour le reste de la session.
+    if (!carte || !Reseau.reseauPret() || !stylePret) return;
     if (carte.getSource("cts-traces")) return;
 
     carte.addSource("cts-traces", { type: "geojson", data: "data/cts-traces.geojson" });
     carte.addSource("cts-stations", { type: "geojson", data: geojsonStations() });
+    ajouterIcones();
 
     var vis = visible ? "visible" : "none";
     var sombre = Carte.themeSombre();
@@ -202,6 +302,32 @@ var Transports = (function () {
       }
     });
 
+    // Pictogrammes tram/bus/mixte, en plus des pastilles ci-dessus (gardées
+    // pour rester visibles très dézoomé). N'apparaissent qu'à partir d'un
+    // zoom où chaque arrêt est individuellement cliquable, pour ne pas
+    // surcharger la carte. Les gares SNCF n'ont pas d'icône dédiée ici
+    // (mode "gare" absent du match) : elles gardent leur seule pastille,
+    // déjà distincte (plus grande, liseré sombre) — hors du périmètre
+    // demandé (distinguer tram/bus).
+    carte.addLayer({
+      id: "cts-stations-icones",
+      type: "symbol",
+      source: "cts-stations",
+      minzoom: 13,
+      layout: {
+        visibility: vis,
+        "icon-image": ["match", ["get", "mode"],
+          "tram", "cts-icone-tram",
+          "bus", "cts-icone-bus",
+          "mixte", "cts-icone-mixte",
+          ""],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 13, 0.22, 15, 0.32, 18, 0.5],
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "symbol-sort-key": ["get", "tri"]
+      }
+    });
+
     // couche d'itinéraire, posée au-dessus et alimentée par itineraires.js
     carte.addSource("trajet", {
       type: "geojson", data: { type: "FeatureCollection", features: [] }
@@ -241,7 +367,7 @@ var Transports = (function () {
 
     if (ligneIsolee) appliquerIsolement();
 
-    ["cts-stations-points", "cts-stations-noms"].forEach(function (couche) {
+    ["cts-stations-points", "cts-stations-noms", "cts-stations-icones"].forEach(function (couche) {
       carte.on("click", couche, function (ev) {
         if (ev.features && ev.features.length) {
           ouvrirFicheStation(ev.features[0].properties.idx);
@@ -258,7 +384,7 @@ var Transports = (function () {
 
   function basculerVisibilite(force) {
     visible = typeof force === "boolean" ? force : !visible;
-    ["cts-traces-halo", "cts-traces-lignes", "cts-stations-points", "cts-stations-noms"]
+    ["cts-traces-halo", "cts-traces-lignes", "cts-stations-points", "cts-stations-noms", "cts-stations-icones"]
       .forEach(function (id) {
         if (carte.getLayer(id)) {
           carte.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
@@ -288,6 +414,9 @@ var Transports = (function () {
       }
       carte.setFilter("cts-stations-points", filtreStations);
       carte.setFilter("cts-stations-noms", filtreStations);
+      if (carte.getLayer("cts-stations-icones")) {
+        carte.setFilter("cts-stations-icones", filtreStations);
+      }
     }
     var indicateur = document.getElementById("chip-isolement");
     if (ligneIsolee) {
@@ -376,6 +505,68 @@ var Transports = (function () {
     return l;
   }
 
+  // ---------- lignes et directions (arrêt suivant dans chaque sens) ----------
+
+  /* Pour chaque ligne desservant la station, ses directions (identifiées par
+     leur terminus) qui passent par cette station, et l'arrêt suivant dans
+     chacune. S'appuie sur `ligne.parcours` (reseau.json) — le même jeu de
+     tracés déjà utilisé par la fiche ligne (ouvrirFicheLigne) — plutôt que
+     de reparcourir les motifs horaires : ce sont les tracés canoniques des
+     deux sens (jusqu'à 4 pour une ligne à branches), pas les variantes de
+     service ponctuelles (renforts, courses tronquées) qui gonfleraient la
+     liste sans rien apporter d'utile ici. */
+  function directionsStation(idxStation) {
+    var lignes = Reseau.lignes();
+    var station = Reseau.stations()[idxStation];
+    return station[4].map(function (idxLigne) {
+      var parDest = {};
+      lignes[idxLigne].parcours.forEach(function (pair) {
+        var arrets = pair[1], position = arrets.indexOf(idxStation);
+        if (position === -1) return;
+        var prochain = position + 1 < arrets.length ? arrets[position + 1] : null;
+        var existant = parDest[pair[0]];
+        if (!existant || (existant.prochain === null && prochain !== null)) {
+          parDest[pair[0]] = { dest: pair[0], prochain: prochain };
+        }
+      });
+      var directions = Object.keys(parDest).map(function (k) { return parDest[k]; });
+      directions.sort(function (a, b) {
+        return Reseau.destinations()[a.dest].localeCompare(Reseau.destinations()[b.dest], "fr");
+      });
+      return { idxLigne: idxLigne, directions: directions };
+    }).filter(function (e) { return e.directions.length; })
+      .sort(function (a, b) {
+        return lignes[a.idxLigne].nom.localeCompare(lignes[b.idxLigne].nom, "fr", { numeric: true });
+      });
+  }
+
+  function blocDirections(entreeLigne) {
+    var bloc = document.createElement("div");
+    bloc.className = "ligne-directions";
+    var titre = document.createElement("h4");
+    titre.appendChild(badgeLigne(entreeLigne.idxLigne));
+    bloc.appendChild(titre);
+
+    var ul = document.createElement("ul");
+    ul.className = "directions";
+    entreeLigne.directions.forEach(function (d) {
+      var li = document.createElement("li");
+      var nom = document.createElement("span");
+      nom.className = "direction-nom";
+      nom.textContent = "Direction " + Reseau.destinations()[d.dest];
+      li.appendChild(nom);
+      var prochain = document.createElement("span");
+      prochain.className = "direction-prochain";
+      prochain.textContent = d.prochain !== null
+        ? "prochain arrêt : " + Reseau.stations()[d.prochain][1]
+        : "terminus de cette ligne";
+      li.appendChild(prochain);
+      ul.appendChild(li);
+    });
+    bloc.appendChild(ul);
+    return bloc;
+  }
+
   function ouvrirFicheStation(idxStation) {
     var station = Reseau.stations()[idxStation];
     ouvrirFiche(station[1], "Chargement des horaires…");
@@ -390,6 +581,11 @@ var Transports = (function () {
           (gare ? " SNCF" : "")
       );
 
+      var mode = document.createElement("p");
+      mode.className = "mode-arret";
+      mode.textContent = LIBELLES_MODE[modeStation(station)];
+      corps.appendChild(mode);
+
       var badges = document.createElement("div");
       badges.className = "badges";
       station[4].forEach(function (idxLigne) {
@@ -400,6 +596,18 @@ var Transports = (function () {
         badges.appendChild(b);
       });
       corps.appendChild(badges);
+
+      // directions et arrêt suivant : information structurelle (toujours
+      // valable), distincte des horaires réels ci-dessous
+      if (!gare) {
+        var directions = directionsStation(idxStation);
+        if (directions.length) {
+          var titreDirections = document.createElement("h3");
+          titreDirections.textContent = "Lignes et directions";
+          corps.appendChild(titreDirections);
+          directions.forEach(function (e) { corps.appendChild(blocDirections(e)); });
+        }
+      }
 
       // liens vers le calcul d'itinéraire
       var actions = document.createElement("div");
@@ -422,6 +630,9 @@ var Transports = (function () {
       // sans borne haute : la journée peut n'avoir de desserte qu'en soirée
       // (travaux d'été, service réduit), et l'annoncer vaut mieux que
       // renvoyer l'utilisateur au lendemain.
+      var titrePassages = document.createElement("h3");
+      titrePassages.textContent = "Prochains passages";
+      corps.appendChild(titrePassages);
       var conteneurPassages = document.createElement("div");
       corps.appendChild(conteneurPassages);
       var groupes = prochainsPassages(idxStation, maintenant, Infinity);

@@ -298,6 +298,52 @@ html, body {
 
 .badges .badge { cursor: pointer; }
 
+.mode-arret {
+  margin: 0 0 8px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--texte-secondaire);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* lignes et directions (arrêt suivant dans chaque sens) */
+
+.ligne-directions {
+  margin-bottom: 10px;
+}
+
+.ligne-directions h4 {
+  margin: 0 0 4px 0;
+}
+
+.directions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.directions li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 0 6px 10px;
+  border-left: 2px solid var(--bordure);
+}
+
+.directions li + li { margin-top: 4px; }
+
+.direction-nom {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--texte);
+}
+
+.direction-prochain {
+  font-size: 12.5px;
+  color: var(--texte-secondaire);
+}
+
 /* prochains passages */
 
 .passage {
