@@ -1,5 +1,5 @@
 {
-  "build": "2026-07-26-4",
+  "build": "2026-07-27-1",
   "tuiles": {
     "source": "https://build.protomaps.com/20260724.pmtiles",
     "donnees_osm": "2026-07-24",
@@ -52,5 +52,17 @@
     "avec_description": 17,
     "avec_photo": 12,
     "remarque": "aucun tarif publié : le jeu officiel n'en fournit aucun, on n'invente rien"
+  },
+  "commerces": {
+    "source": "OpenStreetMap (position, horaires, site web)",
+    "releve": "2026-07-27",
+    "lieux": 1250,
+    "restaurant": 1091,
+    "post_office": 75,
+    "books": 38,
+    "library": 46,
+    "avec_horaires": 715,
+    "avec_site": 565,
+    "remarque": "clic sur les points déjà affichés par le fond de carte (couche pois) ; aucun tarif ni menu publié"
   }
 }

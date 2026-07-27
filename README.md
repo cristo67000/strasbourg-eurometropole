@@ -66,6 +66,15 @@ Un clic ouvre la fiche habituelle, enrichie d'une section « Lignes et direction
 pour chaque ligne, ses deux sens (jusqu'à 4 pour une ligne à branches) avec le terminus
 et l'arrêt suivant — voir [ARCHITECTURE.md § 3.6](ARCHITECTURE.md#36-icônes-trambus-et-fiche--lignes-et-directions--réalisé).
 
+**Fond de carte allégé** : les micro-toponymes historiques en allemand (lieux-dits sans
+population réelle, ex. Cronenbourg/Schiltigheim) ainsi que les snacks/fast-food,
+épiceries/supérettes et instituts de beauté ne sont plus affichés.
+
+**Restaurants, bureaux de poste, librairies, médiathèques** : un clic sur ces points déjà
+affichés par le fond de carte ouvre désormais une bulle avec l'état d'ouverture, les
+horaires bruts et le site web, quand OpenStreetMap les renseigne — voir
+[ARCHITECTURE.md § 5.1](ARCHITECTURE.md#51-commerces-et-services-restaurants-bureaux-de-poste-librairies-médiathèques--réalisé).
+
 ## Lancer en local
 
 Le serveur standard de Python ne gère pas les requêtes HTTP *Range* dont
@@ -106,6 +115,13 @@ puis ouvrir http://localhost:8135
 
   Option `--sans-photos` pour aller plus vite (les fichiers `img/musees/*.webp`
   ne sont alors ni rafraîchis ni supprimés).
+
+- **Restaurants, bureaux de poste, librairies, médiathèques** (horaires et site web,
+  OpenStreetMap) :
+
+  ```
+  python build/commerces.py
+  ```
 
 - **Liste de précache du service worker** (à refaire après tout ajout ou
   suppression de fichier servi par l'app) :

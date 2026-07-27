@@ -826,6 +826,7 @@ var Transports = (function () {
     });
     Itineraires.initialiser();
     Musees.initialiser(carte);
+    Commerces.initialiser(carte);
     Poi.initialiser(carte);
     TempsReel.initialiser();
 

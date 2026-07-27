@@ -345,6 +345,35 @@ Chaque fiche liste les stations proches (issues de `reseau.js`, § 3-4) et propo
 Reste à faire : les expositions en cours (en ligne, agenda `data.strasbourg.eu`,
 phase 7).
 
+### 5.1 Commerces et services (restaurants, bureaux de poste, librairies,
+    médiathèques) — *réalisé*
+
+Contrairement aux musées, ces catégories sont déjà affichées par le fond de carte
+(couche `pois` du style Protomaps, § 2) : leur position et leur nom sont donc gratuits,
+mais **sans horaires ni site web** (le fond de carte ne porte que `name`/`kind`, vérifié
+par introspection avant d'écrire une ligne de code). Plutôt que dupliquer une couche de
+marqueurs, `commerces.js` **rend cliquables les points déjà visibles** : au clic sur la
+couche `pois` filtrée à ces 4 genres, il cherche le lieu le plus proche (< 40 m) dans
+un jeu de données dédié (`build/commerces.py`, requête Overpass ciblée sur
+`amenity=restaurant`, `amenity=post_office`, `shop=books`, `amenity=library` — seule
+source ouverte à porter `opening_hours`/`website` pour ces catégories, même choix que
+pour les musées § 5) et ouvre la fiche habituelle avec l'état d'ouverture
+(`Musees.etatOuverture`, réutilisé tel quel plutôt que dupliqué) et le lien vers le
+site s'il existe.
+
+Résultat : **1 250 lieux** (1 091 restaurants, 75 bureaux de poste, 38 librairies,
+46 médiathèques), 715 avec horaires, 565 avec site web, 211 Ko. Si le rapprochement
+échoue (lieu disparu du relevé le plus récent, ou absent du fond de carte à moins de
+40 m), la fiche l'indique honnêtement plutôt que de rester muette.
+
+Limite assumée, propre au fond de carte : Protomaps applique sa propre détection de
+collision aux étiquettes de la couche `pois` (des milliers de points par écran à
+fort zoom — arbres, bancs, parkings à vélo…) ; un bureau de poste ou une librairie
+peut donc rester invisible à un endroit précis même si la donnée existe (vérifié :
+`querySourceFeatures` la montre toujours présente, seul le rendu la masque). Rien à
+corriger côté app — modifier les priorités de collision reviendrait à retoucher le
+style de base pour un effet secondaire mineur.
+
 ---
 
 ## 6. POI personnels (restaurants, bars, cinémas…) — *réalisé*

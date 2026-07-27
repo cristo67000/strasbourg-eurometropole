@@ -21,6 +21,7 @@ FICHIERS_RACINE = [
     "reseau.js",
     "itineraires.js",
     "musees.js",
+    "commerces.js",
     "poi.js",
     "temps-reel.js",
     "transports.js",
@@ -33,6 +34,7 @@ FICHIERS_DATA = [
     "data/cts-traces.geojson",
     "data/cts-tarifs.json",
     "data/musees.json",
+    "data/commerces.json",
     "data/version.json",
 ]
 
